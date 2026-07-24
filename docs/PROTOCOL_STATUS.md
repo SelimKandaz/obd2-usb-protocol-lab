@@ -26,6 +26,14 @@ Legend — **Status**: ✅ done · 🟡 partial · ⛔ blocked · ⬜ not starte
 ## Summary
 Everything that can be learned from the device **without sending vendor traffic**
 is VERIFIED: identity, strings, endpoints. Everything that requires observing the
-updater↔device conversation is **blocked on a USB capture** (USBPcap must be
-installed) and/or the **updater binary** (not present on the host). The tooling to
-analyze those inputs is built and tested; it is waiting for evidence, not code.
+updater↔device conversation is **blocked on evidence**, waiting on two owner
+actions (see `reports/VOD700_PROTOCOL_MILESTONE_2.md`):
+
+1. **USBPcap** — Wireshark/tshark/dumpcap 4.6.7 are now installed, but USBPcap
+   (the USB capture driver) is not; installing it needs UAC + a reboot.
+2. **Updater binary** — the official ANCEL VOD700 upgrade software is behind an
+   account sign-in on anceltech.com, which the assistant cannot pass; the owner
+   must download it into `private_samples/updater/`.
+
+The tooling to analyze both inputs is built and tested; it is waiting for
+evidence, not code.
