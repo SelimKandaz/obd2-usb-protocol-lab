@@ -7,7 +7,8 @@
       * It launches the official updater EXE with NO arguments and closes it.
       * It NEVER clicks/keys Update/Upgrade/Download/Recover/Flash controls.
       * It NEVER passes update-related command-line switches.
-      * Capture is time-bounded (dumpcap self-stops via -a duration).
+      * Capture is time-bounded (dumpcap self-stops; direct USBPcapCMD is stopped
+        immediately after the bounded updater-idle interval).
 
     The script REFUSES to run if USBPcap is not installed, if the VOD700 is not
     present, or if the updater path is missing. Use -DryRun to validate the
@@ -30,6 +31,7 @@
 [CmdletBinding()]
 param(
     [string]$UpdaterPath,
+    [Alias('CaptureDuration')]
     [int]$DurationSeconds = 18,
     [string[]]$CaptureInterface,
     [string]$OutDir,
@@ -76,6 +78,13 @@ if (-not $CaptureInterface -or $CaptureInterface.Count -eq 0) {
     Fail "No USBPcap capture interface found via 'dumpcap -D'. Confirm USBPcap installed and the machine rebooted."
 }
 Write-Host "USBPcap interface(s): $($CaptureInterface -join ', ')"
+$useDirectUsbPcap = $CaptureInterface.Count -eq 1 -and
+    $CaptureInterface[0] -match '^\\\\\.\\USBPcap\d+$'
+if ($useDirectUsbPcap) {
+    Write-Host "Capture backend: USBPcapCMD (direct control device)"
+} else {
+    Write-Host "Capture backend: dumpcap"
+}
 
 # --- 4. Updater path -----------------------------------------------------
 if (-not $DryRun) {
@@ -88,28 +97,43 @@ if (-not $DryRun) {
 if (-not $OutDir) { $OutDir = Join-Path $repo 'private_samples\captures' }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-$capturePath = Join-Path $OutDir "handshake_$stamp.pcapng"
+$extension = if ($useDirectUsbPcap) { 'pcap' } else { 'pcapng' }
+$capturePath = Join-Path $OutDir "handshake_$stamp.$extension"
 
 # --- 6. Elevation note ---------------------------------------------------
 $elevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
 if (-not $elevated) { Write-Warning "Not elevated. USBPcap capture usually requires Administrator; if capture is empty, re-run elevated." }
+if ($useDirectUsbPcap -and -not $DryRun -and -not $elevated) {
+    Fail "Direct USBPcapCMD capture requires an elevated PowerShell session. No updater was launched."
+}
 
 # --- 7. Plan / DryRun ----------------------------------------------------
 Write-Host "--------------------------------------------------------------"
 Write-Host "PLAN (passive, bounded, no update-UI actions):"
 Write-Host "  capture -> $capturePath"
 Write-Host "  interfaces -> $($CaptureInterface -join ', ')"
-Write-Host "  duration -> $DurationSeconds s (dumpcap self-stops)"
+Write-Host "  backend -> $(if ($useDirectUsbPcap) {'USBPcapCMD'} else {'dumpcap'})"
+Write-Host "  duration -> $DurationSeconds s (bounded by orchestrator)"
 Write-Host "  updater  -> $(if ($DryRun) {'(dry run: not launched)'} else {$UpdaterPath}) [launched with NO arguments]"
+Write-Host "  close strategy -> CloseMainWindow; force-stop only if still open after 3 s"
 Write-Host "--------------------------------------------------------------"
 if ($DryRun) { Write-Host "DryRun complete. Environment is ready: USBPcap present, device present."; exit 0 }
 
 # --- 8. Start capture (self-stopping) ------------------------------------
-$iArgs = @(); foreach ($i in $CaptureInterface) { $iArgs += @('-i', $i) }
-$dumpArgs = $iArgs + @('-w', $capturePath, '-a', "duration:$($DurationSeconds + 4)")
 Write-Host "Starting capture..."
-$cap = Start-Process -FilePath $dumpcap -ArgumentList $dumpArgs -PassThru -WindowStyle Hidden
+if ($useDirectUsbPcap) {
+    $directArgs = '-d "{0}" -o "{1}" --devices {2} --inject-descriptors' -f
+        $CaptureInterface[0], $capturePath, $address
+    $cap = Start-Process -FilePath $usbpcapCmd -ArgumentList $directArgs -PassThru -WindowStyle Hidden
+} else {
+    $iArgs = @(); foreach ($i in $CaptureInterface) { $iArgs += @('-i', $i) }
+    $dumpArgs = $iArgs + @('-w', $capturePath, '-a', "duration:$($DurationSeconds + 4)")
+    $cap = Start-Process -FilePath $dumpcap -ArgumentList $dumpArgs -PassThru -WindowStyle Hidden
+}
 Start-Sleep -Seconds 2  # let the capture attach
+if ($cap.HasExited) {
+    Fail "Capture process exited before the updater launch. No updater was launched."
+}
 
 # --- 9. Launch updater (NO arguments; never any update switch) -----------
 Write-Host "Launching updater (passive; it should only DETECT the device)..."
@@ -125,8 +149,12 @@ try { $upd.CloseMainWindow() | Out-Null; Start-Sleep -Seconds 3 } catch {}
 if (-not $upd.HasExited) { try { Stop-Process -Id $upd.Id -Force -ErrorAction SilentlyContinue } catch {} }
 
 # --- 12. Wait for capture to finish & flush ------------------------------
-try { Wait-Process -Id $cap.Id -Timeout 15 -ErrorAction SilentlyContinue } catch {}
-if (-not $cap.HasExited) { try { Stop-Process -Id $cap.Id -Force -ErrorAction SilentlyContinue } catch {} }
+if ($useDirectUsbPcap) {
+    if (-not $cap.HasExited) { try { Stop-Process -Id $cap.Id -Force -ErrorAction SilentlyContinue } catch {} }
+} else {
+    try { Wait-Process -Id $cap.Id -Timeout 15 -ErrorAction SilentlyContinue } catch {}
+    if (-not $cap.HasExited) { try { Stop-Process -Id $cap.Id -Force -ErrorAction SilentlyContinue } catch {} }
+}
 Start-Sleep -Seconds 1
 
 # --- 13. Verify + hash ---------------------------------------------------
