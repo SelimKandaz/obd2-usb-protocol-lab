@@ -1,44 +1,45 @@
-# Capture Tooling Report (Phase 1)
+# Capture Tooling Report
 
 Date: 2026-07-24. Host username/paths redacted.
 
-## Installed this session
-| Tool     | Version   | Source                                   | Path                                   |
-|----------|-----------|------------------------------------------|----------------------------------------|
-| Wireshark| 4.6.7     | winget `WiresharkFoundation.Wireshark`   | `C:\Program Files\Wireshark\Wireshark.exe` |
-| tshark   | 4.6.7     | (bundled with Wireshark)                 | `C:\Program Files\Wireshark\tshark.exe`|
-| dumpcap  | 4.6.7     | (bundled with Wireshark)                 | `C:\Program Files\Wireshark\dumpcap.exe`|
+## VERIFIED LIVE
 
-Install command used (silent, official publisher "The Wireshark Foundation"):
-```
-winget install --id WiresharkFoundation.Wireshark -e --silent --accept-package-agreements --accept-source-agreements
-```
-The WinUSB driver on the VOD700 was **not** touched. Npcap (already present from
-Nmap) was left as-is.
+| Tool | Version/state |
+|---|---|
+| Wireshark / tshark / dumpcap | 4.6.7 |
+| USBPcapCMD | installed |
+| USBPcap kernel driver | running |
+| VOD700 | present at USB address 9, `Port_#0009.Hub_#0001` |
+| Verified capture control device | `\\.\USBPcap1` |
 
-## USBPcap — NOT installed (blocks USB capture)
-- `USBPcapCMD.exe` absent (`C:\Program Files\USBPcap\` does not exist).
-- `dumpcap -D` lists **only network interfaces** (Npcap adapters: Ethernet/Wi-Fi/
-  loopback/Tailscale/WSL). **No `USBPcap` interface is present.** (Interface GUIDs
-  intentionally omitted from this committed report.)
-- winget's *silent* Wireshark install does **not** include the optional USBPcap
-  component, so it must be installed separately.
+The port/address must be rechecked after reconnect. The VOD700 remains bound to
+Microsoft WinUSB; no device driver was replaced.
 
-### To enable USB capture (owner action — UAC + reboot)
-USBPcap installs a kernel-mode capture driver that only activates after a reboot,
-so this requires the owner:
-1. Install USBPcap from an official source — either the **Wireshark installer's
-   USBPcap component**, or the standalone official installer at
-   `https://desowin.org/usbpcap/` (USBPcap is the project the Wireshark component
-   ships; it is the required USB driver, not an "unrelated" packet driver).
-2. Approve the **UAC** prompt.
-3. **Reboot** (the driver loads at boot).
-4. Verify: `dumpcap -D` should then list one or more `USBPcap` interfaces, and
-   `scripts\capture_updater_handshake.ps1 -DryRun` should report "ready".
+## dumpcap integration limitation
 
-## Verification of the orchestrator
-`scripts\capture_updater_handshake.ps1 -DryRun` currently:
-- detects the VOD700 (address 9), and
-- **safely refuses** with install instructions because USBPcap is absent.
+`dumpcap -D` lists network interfaces only despite the running USBPcap driver.
+Passing `\\.\USBPcap1` directly to dumpcap fails with Windows error 123. This is
+a Wireshark/USBPcap enumeration integration issue, not evidence that the kernel
+driver is absent.
 
-This is the intended gate: no capture is attempted until USBPcap is present.
+The orchestrator now supports direct `USBPcapCMD` capture when an explicit
+control device is supplied. It restricts capture to the current USB device
+address and injects descriptors. Its classic pcap output is supported by the
+native analyzer.
+
+## VERIFIED DRY RUN
+
+- backend: `USBPcapCMD`
+- interface: `\\.\USBPcap1`
+- device address: 9
+- duration: 18 seconds
+- updater arguments: none
+- close: `CloseMainWindow`, force-stop only after a 3-second grace period
+- destination: git-ignored `private_samples/captures/`
+
+## BLOCKED
+
+Direct capture requires elevated PowerShell. Two elevation launch attempts did
+not receive UAC approval before the caller timed out. No updater process
+appeared and no capture file was created. The next action is owner approval of
+the UAC prompt for this same bounded passive capture.

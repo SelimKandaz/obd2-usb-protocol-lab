@@ -10,7 +10,7 @@ Legend — **Status**: ✅ done · 🟡 partial · ⛔ blocked · ⬜ not starte
 | Endpoint discovery         |   ✅   | live `WinUsb_QueryPipe` + dump             | VERIFIED   | yes           | `vod700 endpoints` |
 | Device identity (VID/PID/strings) | ✅ | live device-descriptor read             | VERIFIED   | yes           | `vod700 descriptors` |
 | Serial number              |   ✅   | string descriptor #3 = `Autophix DM`       | VERIFIED   | yes (fixed)   | `vod700 descriptors` |
-| Updater detection handshake| ⛔    | needs USB capture (USBPcap not installed)  | UNKNOWN    | n/a           | analyzer ready |
+| Updater detection handshake| ⛔    | dry run passed; elevated capture awaits UAC | UNKNOWN    | n/a           | analyzer ready |
 | Heartbeat / polling        | ⬜    | none yet                                    | UNKNOWN    | n/a           | detector ready (`repeated_payloads`) |
 | Firmware version query     | ⬜    | none yet                                    | UNKNOWN    | no (gated)    | gated in `policy.py` |
 | Language / region          | ⬜    | none yet                                    | UNKNOWN    | no            | — |
@@ -18,22 +18,13 @@ Legend — **Status**: ✅ done · 🟡 partial · ⛔ blocked · ⬜ not starte
 | Update-mode status         | ⬜    | none yet                                    | UNKNOWN    | no            | — |
 | Bulk transfer behavior     | ⬜    | endpoints known; behavior not captured     | LOW        | no            | reassembler ready (`framing`) |
 | Framing (16B interrupt)    | 🟡    | endpoint size known; layout unknown        | LOW        | n/a           | `framing.py` |
-| Checksum / CRC             | ⬜    | none yet                                    | UNKNOWN    | n/a           | detectors ready (`checksums.py`) |
+| Checksum / CRC             | 🟡    | updater `0x0040EC70`: additive sum8          | HIGH       | n/a           | detectors ready (`checksums.py`) |
 | ACK / NACK behavior        | ⬜    | none yet                                    | UNKNOWN    | n/a           | models ready |
 | Error responses            | ⬜    | none yet                                    | UNKNOWN    | n/a           | models ready |
-| Firmware container format  | ⛔    | needs an updater/firmware sample           | UNKNOWN    | n/a           | analyzer TBD |
+| Firmware container format  | 🟡    | high-entropy opaque containers inspected    | MEDIUM     | n/a           | static report |
 
 ## Summary
-Everything that can be learned from the device **without sending vendor traffic**
-is VERIFIED: identity, strings, endpoints. Everything that requires observing the
-updater↔device conversation is **blocked on evidence**, waiting on two owner
-actions (see `reports/VOD700_PROTOCOL_MILESTONE_2.md`):
-
-1. **USBPcap** — Wireshark/tshark/dumpcap 4.6.7 are now installed, but USBPcap
-   (the USB capture driver) is not; installing it needs UAC + a reboot.
-2. **Updater binary** — the official ANCEL VOD700 upgrade software is behind an
-   account sign-in on anceltech.com, which the assistant cannot pass; the owner
-   must download it into `private_samples/updater/`.
-
-The tooling to analyze both inputs is built and tested; it is waiting for
-evidence, not code.
+The updater and USBPcap are present. Static analysis verifies the native WinUSB
+paths, fixed 16-byte request framing, and additive trailing checksum. Dynamic
+claims remain blocked until the owner approves the UAC prompt for the bounded
+passive capture. No active vendor request is enabled.

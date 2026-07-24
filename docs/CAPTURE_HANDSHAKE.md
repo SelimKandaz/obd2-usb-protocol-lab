@@ -8,17 +8,13 @@ sitting idle. **No** update-related buttons are pressed.
 USB capture on Windows needs **USBPcap**. Status on this research host (2026-07-24):
 
 - Wireshark / tshark / dumpcap **4.6.7**: **installed** (via winget). ✅
-- USBPcap: **NOT installed** → still blocks USB capture. ⛔
+- USBPcap: **installed; kernel driver running**. ✅
 - Npcap: installed (via Nmap) — **but Npcap captures network interfaces only, it
   does NOT capture USB.** It does not help here.
 
-USBPcap is a kernel-mode capture driver that loads at boot, so installing it is an
-**owner action (UAC + reboot)**. Install it from an official source — the Wireshark
-installer's **USBPcap** component, or the standalone official installer at
-`https://desowin.org/usbpcap/` — approve UAC, then **reboot**. No change is made to
-the VOD700's WinUSB driver. See `reports/CAPTURE_TOOLING.md`.
-
-After the reboot, `dumpcap -D` should list one or more `USBPcap` interfaces.
+On this host, `dumpcap -D` does not expose the running USBPcap driver. The
+orchestrator supports an explicit direct control device through `USBPcapCMD`.
+See `reports/CAPTURE_TOOLING.md`.
 
 ## Automated capture (recommended once prerequisites are met)
 
@@ -31,10 +27,13 @@ USBPcap is missing.
 
 ```bash
 # validate the environment without capturing anything
-powershell -ExecutionPolicy Bypass -File scripts\capture_updater_handshake.ps1 -DryRun
+powershell -ExecutionPolicy Bypass -File scripts\capture_updater_handshake.ps1 `
+  -DryRun -CaptureInterface "\\.\USBPcap1"
 
-# once USBPcap is installed (post-reboot) and the updater is in private_samples\updater\
-powershell -ExecutionPolicy Bypass -File scripts\capture_updater_handshake.ps1 -UpdaterPath "private_samples\updater\Update.exe"
+# run from an elevated PowerShell after approving UAC
+powershell -ExecutionPolicy Bypass -File scripts\capture_updater_handshake.ps1 `
+  -UpdaterPath "private_samples\updater\Update.exe" `
+  -CaptureInterface "\\.\USBPcap1"
 ```
 
 The manual procedure below remains valid if you prefer to drive Wireshark by hand.

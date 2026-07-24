@@ -117,11 +117,11 @@ and enabled in `src/vod700/client/policy.py`.
 See [`docs/PROTOCOL_STATUS.md`](docs/PROTOCOL_STATUS.md) and
 [`reports/VOD700_REVERSE_ENGINEERING_STATUS.md`](reports/VOD700_REVERSE_ENGINEERING_STATUS.md).
 
-**Current blockers**
-1. Official updater is **not installed** on the research host → static analysis
-   (Phases 2–3) is pending the binary being placed in `private_samples/updater/`.
-2. **Wireshark/USBPcap not installed** → no USB capture yet. `npcap` (present via
-   Nmap) does **not** capture USB. See `docs/CAPTURE_HANDSHAKE.md`.
+**Current blocker**
+
+The official updater and USBPcap are present, and static analysis is complete.
+The first passive capture awaits owner approval of the Windows UAC prompt needed
+to open the USBPcap control device. No active vendor request is enabled.
 
 ## Legal & ethical
 
