@@ -3,19 +3,41 @@
 Goal of the **first** capture: record only the updater detecting the device and
 sitting idle. **No** update-related buttons are pressed.
 
-## Prerequisites (current host is missing these)
+## Prerequisites
 
-USB capture on Windows needs **USBPcap**. On this research host:
+USB capture on Windows needs **USBPcap**. Status on this research host (2026-07-24):
 
-- Wireshark / tshark / dumpcap: **not installed**
-- USBPcap: **not installed**
+- Wireshark / tshark / dumpcap **4.6.7**: **installed** (via winget). ✅
+- USBPcap: **NOT installed** → still blocks USB capture. ⛔
 - Npcap: installed (via Nmap) — **but Npcap captures network interfaces only, it
   does NOT capture USB.** It does not help here.
 
-Install Wireshark and include the **USBPcap** component during setup (Wireshark's
-installer bundles it as an optional extcap; it also installs `tshark`). No driver
-change to the VOD700 is involved — USBPcap is a capture filter on the USB stack,
-not a device driver replacement.
+USBPcap is a kernel-mode capture driver that loads at boot, so installing it is an
+**owner action (UAC + reboot)**. Install it from an official source — the Wireshark
+installer's **USBPcap** component, or the standalone official installer at
+`https://desowin.org/usbpcap/` — approve UAC, then **reboot**. No change is made to
+the VOD700's WinUSB driver. See `reports/CAPTURE_TOOLING.md`.
+
+After the reboot, `dumpcap -D` should list one or more `USBPcap` interfaces.
+
+## Automated capture (recommended once prerequisites are met)
+
+`scripts\capture_updater_handshake.ps1` orchestrates the whole passive capture
+safely: it verifies the device, auto-detects the USBPcap interface(s) and the
+current USB address, starts a **time-bounded** capture, launches the updater with
+**no arguments**, waits ~18 s for detection, closes it, hashes the pcapng, and runs
+the analyzer. It **never** clicks or keys any update control and refuses to run if
+USBPcap is missing.
+
+```bash
+# validate the environment without capturing anything
+powershell -ExecutionPolicy Bypass -File scripts\capture_updater_handshake.ps1 -DryRun
+
+# once USBPcap is installed (post-reboot) and the updater is in private_samples\updater\
+powershell -ExecutionPolicy Bypass -File scripts\capture_updater_handshake.ps1 -UpdaterPath "private_samples\updater\Update.exe"
+```
+
+The manual procedure below remains valid if you prefer to drive Wireshark by hand.
 
 Verify prerequisites and print the current capture target:
 
