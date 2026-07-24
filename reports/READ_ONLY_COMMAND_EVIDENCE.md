@@ -2,19 +2,27 @@
 
 Date: 2026-07-24
 
-## BLOCKED — insufficient independent evidence
+## Decision
 
-Static analysis found command bytes `0x0B`, `0x06`, and `0x07`, but no passive
-capture exists to identify a device-info/model/version request or confirm that
-any candidate is read-only on the VOD700.
+No VOD700 request is sufficiently evidenced for independent transmission.
+`identify` and `version` remain disabled with safety `UNSAFE` and confidence
+`UNKNOWN`.
 
-Therefore there is currently:
+## Evidence matrix
 
-- no proposed independently executable request
-- no capture response example
-- no replay fixture based on real traffic
-- no parser promotion
-- no policy promotion
+| Candidate | Static evidence | Passive-capture evidence | Safe classification |
+|---|---|---|---|
+| `0x0B` | fixed 16-byte request; response bytes 3-6 consumed as LE32 size/capacity | absent | not established |
+| `0x06` | address-bearing request followed by bulk-IN in updater code | absent | not established |
+| device identity/version | no unique request identified | absent | not established |
 
-`identify` and `version` remain disabled, `UNSAFE`, and `UNKNOWN`. No active
-vendor-protocol request was sent.
+Neither `0x0B` nor `0x06` appeared as a vendor command in the accepted capture.
+The USBPcap function metadata value `0x000B` on descriptor records is unrelated
+to vendor command byte `0x0B`.
+
+The two-source promotion rule therefore fails: static analysis exists, but
+passive dynamic corroboration does not. There is no request byte string,
+endpoint, expected response, timeout, maximum response length, or risk
+assessment that can be presented as an approval-ready active proposal.
+
+No packet was sent after analysis, and no active-request approval is requested.

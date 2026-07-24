@@ -1,98 +1,77 @@
-# VOD700 Protocol — Milestone 3 Checkpoint
+# VOD700 Protocol - Milestone 3
 
 Date: 2026-07-24
 
 ## Outcome
 
-All non-elevated static work is complete. The first passive capture is blocked
-only on owner approval of the Windows UAC prompt needed for direct USBPcap
-access. The updater was not executed and no independent vendor request was sent.
+Milestone 3 completed the updater static analysis and one owner-approved,
+bounded passive updater run. The run produced a valid 560-byte PCAPNG but no
+updater-generated USB traffic. Only the synthetic descriptors injected by
+USBPcap at capture start were present.
 
-## Repository and safety
+No independent vendor request was sent, no updater control was clicked, no
+firmware image was used, and no driver was installed or replaced.
 
-- Starting HEAD: `c9b9772`
-- Branch: `main`
-- Initial worktree: clean
-- Safety policy: `identify` and `version` both refused dispatch
-- Live read-only checks: two interfaces found; descriptor strings and all four
-  endpoint descriptors matched the prior device profile
-- Baseline: 41 tests passed; Ruff and mypy clean; Python compilation and wheel
-  build passed
+## Repository and runtime gate
 
-## Evidence and host security
+- Starting HEAD: `186de78718f69005cd2fa8047c3cc04d0e1bf55d`
+- Initial branch/worktree: `main`, clean
+- VOD700: present, PnP `Status=Started`, CIM `Status=OK`, `WINUSB`
+- Updater: official `Update.exe`, launched with no arguments
+- Passive interval: 18 seconds
+- UI activity: none
+- Updater shutdown: `CloseMainWindow` succeeded
 
-- Original ZIP hash verified:
-  `0F23628CF36C57541D51458A1871D3E4EEEDF87BB73690661414540530BBC25C`
-- `Update.exe` hash verified:
-  `F705FB6C6276FA52F75DD88269408D5CF061048F5EEB5451212EB1986D862C4D`
-- Firmware hashes verified against the supplied values.
-- ZIP: 41 entries, no traversal/absolute path, duplicate name, or nested archive.
-- Inventory: 82 files, 24 unique hashes, 23 duplicate groups; evidence retained.
-- Defender targeted scan: no new detections; real-time protection enabled.
-- Defender exclusions: unknown because elevation is required to enumerate them.
+## Dynamic USB mapping
 
-## Updater and driver
+Windows reported `DEVPKEY_Device_Address=9` at
+`Port_#0009.Hub_#0001`. USBPcap's extcap device tree independently mapped the
+single WinUSB target to device address 4 on `\\.\USBPcap1`. The orchestrator now
+discovers this mapping dynamically instead of using the Windows hub-port value
+as a USBPcap address.
 
-- Native x86 Visual C++ 2013/MFC application; not .NET; unsigned.
-- PE timestamp `2022-09-14T00:54:02Z`; five normal sections; no strong packer
-  indicator.
-- AD410 product metadata is consistent with an OEM-customized shared DM100
-  updater lineage (`DM100UpdateCustom_OEM_ANCEL` internal build path).
-- Driver families:
-  - DM100 = `0483:5265:0200` (exact VOD700 match)
-  - DM100HC = `2E88:4605:0200`
-  - DM300 = `0483:5750:0200`
-- Static code independently compares PID `0x5265` and selects the DM100 image.
-- Interface GUID found: `{F70242C7-FB25-443B-9E7E-A4260F373982}`.
-- The second live interface GUID is not embedded in the updater.
+## Capture artifact
 
-## WinUSB and protocol static findings
+- Path:
+  `private_samples\captures\handshake_20260724_150600.pcapng`
+- SHA-256:
+  `4CEC0D3B43DB4BE12F5B8F6BCBC43446E46E4A49F49B66E685AC856748D80D3F`
+- Size: 560 bytes
+- Native analyzer records: 6 synthetic records
+- Corrected logical live updater transfers: 0
 
-The updater imports SetupAPI enumeration, `CreateFileA`, WinUSB initialization,
-descriptor/interface/pipe queries, pipe policy, overlapped read/write, and
-cleanup. It does not import `WinUsb_ControlTransfer` or `DeviceIoControl`.
+Endpoint counts:
 
-Verified request frame:
+| Endpoint | Records | Live updater transfers |
+|---|---:|---:|
+| endpoint 0 control | 6 | 0 |
+| `0x01` interrupt OUT | 0 | 0 |
+| `0x81` interrupt IN | 0 | 0 |
+| `0x02` bulk OUT | 0 | 0 |
+| `0x82` bulk IN | 0 | 0 |
 
-`55 AA <command> <12 command-specific bytes> <additive-sum8>`
+All six records share IRP ID zero and a single capture-start timestamp. They
+correlate into injected device-descriptor, configuration-descriptor, and
+set-configuration pairs. They are not updater submit/completion URBs.
 
-The checksum byte is `sum(bytes[0:15]) & 0xFF`, established from function
-`0x0040EC70`. Interrupt requests are exactly 16 bytes on `0x01`; responses are
-exactly 16 bytes on `0x81`. Callers expect response opcode `command + 0x80`.
+## Static/dynamic correlation
 
-Static candidates:
+Static analysis remains strong for:
 
-- `0x0B`: capacity/size query candidate; response bytes 3–6 parsed LE32
-- `0x06`: block-read setup candidate; request bytes 3–6 contain LE32 address,
-  followed by bulk-IN
-- `0x07`: family-path command, meaning unknown
-- `0x03` / `0x0A`: special long-timeout commands, meanings unknown
+- WinUSB open/read/write paths
+- dynamic endpoint discovery
+- 16-byte interrupt OUT and IN transfers
+- request prefix `55 AA`
+- additive request checksum
+- possible command bytes `0x0B`, `0x06`, `0x07`, `0x03`, and `0x0A`
 
-None is classified safe from static evidence alone.
+The capture dynamically confirms only the standard descriptors and four
+endpoint declarations. It does not correlate a vendor command, response,
+heartbeat, checksum instance, or bulk transfer. `0x0B` and `0x06` did not
+appear.
 
-## Firmware containers
+## Safety decision
 
-All four containers are high-entropy and lack clear headers, useful strings, or
-plain STM32 vectors. Repeated tail blocks suggest opaque encoded/encrypted/
-compressed block containers. No decryption or signature bypass was attempted.
-
-## Capture checkpoint
-
-- USBPcap driver: installed and running
-- VOD700 latest address/port: 9 / port 9
-- selected interface: `\\.\USBPcap1`
-- dry run: passed with 18-second bound, no updater arguments
-- real captures: none
-- capture hashes/counts/timeline/heartbeat: unavailable
-
-`dumpcap` does not enumerate USBPcap on this host. A direct-USBPcap fallback was
-added and dry-run verified. Direct capture requires elevation. Two UAC launch
-requests timed out without approval; no updater process appeared and no capture
-file was created.
-
-## Stop condition
-
-The project has not reached a defensible active-request proposal because the
-second evidence source (passive capture) is missing. No policy entry was changed.
-The immediate owner action is to approve UAC for the bounded passive capture,
-not to approve an active vendor request.
+No safe read-only request candidate meets the required independent static and
+passive-capture threshold. The client policy is unchanged. The project stops
+before the first independent active vendor request.

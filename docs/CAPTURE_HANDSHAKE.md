@@ -1,115 +1,57 @@
-# Capture Workflow — Passive Handshake
+# Capture Workflow - Passive Handshake
 
-Goal of the **first** capture: record only the updater detecting the device and
-sitting idle. **No** update-related buttons are pressed.
+The orchestrator records the updater detecting the USB-only VOD700 while idle.
+It never sends a project-generated vendor request and never interacts with an
+update control.
 
-## Prerequisites
+## Automated workflow
 
-USB capture on Windows needs **USBPcap**. Status on this research host (2026-07-24):
+Dry run:
 
-- Wireshark / tshark / dumpcap **4.6.7**: **installed** (via winget). ✅
-- USBPcap: **installed; kernel driver running**. ✅
-- Npcap: installed (via Nmap) — **but Npcap captures network interfaces only, it
-  does NOT capture USB.** It does not help here.
-
-On this host, `dumpcap -D` does not expose the running USBPcap driver. The
-orchestrator supports an explicit direct control device through `USBPcapCMD`.
-See `reports/CAPTURE_TOOLING.md`.
-
-## Automated capture (recommended once prerequisites are met)
-
-`scripts\capture_updater_handshake.ps1` orchestrates the whole passive capture
-safely: it verifies the device, auto-detects the USBPcap interface(s) and the
-current USB address, starts a **time-bounded** capture, launches the updater with
-**no arguments**, waits ~18 s for detection, closes it, hashes the pcapng, and runs
-the analyzer. It **never** clicks or keys any update control and refuses to run if
-USBPcap is missing.
-
-```bash
-# validate the environment without capturing anything
-powershell -ExecutionPolicy Bypass -File scripts\capture_updater_handshake.ps1 `
-  -DryRun -CaptureInterface "\\.\USBPcap1"
-
-# run from an elevated PowerShell after approving UAC
+```powershell
 powershell -ExecutionPolicy Bypass -File scripts\capture_updater_handshake.ps1 `
   -UpdaterPath "private_samples\updater\Update.exe" `
-  -CaptureInterface "\\.\USBPcap1"
+  -DurationSeconds 18 `
+  -DryRun
 ```
 
-The manual procedure below remains valid if you prefer to drive Wireshark by hand.
+Owner-approved elevated run:
 
-Verify prerequisites and print the current capture target:
-
-```bash
-powershell -ExecutionPolicy Bypass -File scripts\capture_prereqs.ps1
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\capture_updater_handshake.ps1 `
+  -UpdaterPath "private_samples\updater\Update.exe" `
+  -DurationSeconds 18
 ```
 
-## Find the current bus/address (do not hard-code it)
+The script:
 
-The USB address changes across reconnects. `capture_prereqs.ps1` prints the
-device's current `DEVPKEY_Device_Address` (it was `9` at last check) and the
-matching Wireshark display filter. Always re-check before a capture.
+1. verifies the VOD700 and capture tools
+2. enumerates USBPcap interfaces
+3. finds the unique WinUSB target in each extcap device tree
+4. filters to that USBPcap address
+5. creates a bounded named-pipe sink before starting USBPcap
+6. launches the updater with no arguments
+7. waits 18 seconds without UI interaction
+8. calls `CloseMainWindow`
+9. stops the pipe and USBPcap process
+10. converts the private raw stream to PCAPNG, hashes it, and runs the analyzer
 
-## Passive capture procedure
+## Address warning
 
-1. Ensure the VOD700 is connected to the desktop **only** (not to a vehicle).
-2. Start the USB capture:
-   - **Wireshark GUI:** pick the `USBPcap<N>` interface corresponding to the root
-     hub the VOD700 is on. If unsure which root hub, start capture on each
-     `USBPcap` interface, or use USBPcapCMD to list device trees.
-   - **CLI (dumpcap):**
-     ```bash
-     "C:\Program Files\Wireshark\dumpcap.exe" -i USBPcap1 -w private_samples\captures\handshake.pcapng
-     ```
-3. Launch the official updater.
-4. Let it detect the device. **Wait ~10–20 seconds.**
-5. Do **not** press Update / Upgrade / Recover / Download / Flash / Firmware.
-6. Close the updater.
-7. Stop the capture.
+`DEVPKEY_Device_Address` can describe the physical hub port and may differ from
+USBPcap's current bus address. On the 2026-07-24 run, Windows reported 9 while
+USBPcap reported 4 on `\\.\USBPcap1`. Always use the extcap device-tree mapping.
 
-Save the file under `private_samples\captures\` (git-ignored).
+## Analysis
 
-## Wireshark display filters
+```powershell
+.\.venv\Scripts\python.exe -m vod700 capture analyze `
+  private_samples\captures\<capture>.pcapng --out reports --prefix handshake
 
-Primary (after you know the address):
-```
-usb.device_address == 9
-```
-Narrow to this device once descriptors have been exchanged:
-```
-usb.idVendor == 0x0483 && usb.idProduct == 0x5265
-```
-Endpoint-specific (validate field names in your Wireshark version first):
-```
-usb.endpoint_address == 0x01    // interrupt OUT (command candidate)
-usb.endpoint_address == 0x81    // interrupt IN  (status candidate)
-usb.endpoint_address == 0x02    // bulk OUT      (data candidate)
-usb.endpoint_address == 0x82    // bulk IN       (data candidate)
+.\.venv\Scripts\python.exe -m vod700 capture checksums `
+  private_samples\captures\<capture>.pcapng --endpoint 0x01
 ```
 
-**Field-name caveat:** Wireshark versions differ. Some expose
-`usb.endpoint_address`, others `usb.endpoint_number`, and USBPcap vs. usbmon
-dissectors label fields differently. If a filter yields nothing, open one packet
-and read the actual field name from the detail pane. Our analyzer does **not**
-depend on Wireshark field names — it parses the USBPcap pseudo-header directly.
-
-## Analyze the capture (no tshark required)
-
-```bash
-vod700 capture summary  private_samples\captures\handshake.pcapng
-vod700 capture analyze  private_samples\captures\handshake.pcapng --out reports --prefix handshake
-```
-
-Outputs:
-- `reports\handshake_timeline.md` — human-readable timeline + endpoint groups
-- `reports\handshake_packets.jsonl` — one JSON object per transfer
-- `reports\handshake_packets.csv` — spreadsheet-friendly
-
-Then look for a trailing checksum on the interrupt command channel:
-```bash
-vod700 capture checksums private_samples\captures\handshake.pcapng --endpoint 0x01
-```
-
-## Differential captures
-See [`NEXT_CAPTURES.md`](NEXT_CAPTURES.md) for the A–H capture matrix that
-isolates init vs. heartbeat vs. device-info traffic.
+USBPcap descriptor injection creates synthetic capture-start records with IRP
+ID zero. Correlate those setup/descriptor pairs separately from live updater
+submit/completion URBs before counting endpoint traffic.
