@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vod700"
+version = "0.1.0"
+description = "Read-only, evidence-driven USB protocol research tools for the ANCEL/Autophix VOD700"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "VOD700 Protocol Lab" }]
+keywords = ["usb", "winusb", "reverse-engineering", "pcapng", "usbpcap", "vod700"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Hardware",
+]
+# Zero runtime dependencies on purpose: the core parsers, models, and the
+# native pcapng/USBPcap reader use only the standard library so tests run
+# anywhere and nothing has to be trusted from PyPI to analyze a capture.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff>=0.4", "mypy>=1.8"]
+
+[project.scripts]
+vod700 = "vod700.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]  # long hex/evidence lines are allowed in this domain
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["vod700"]
+mypy_path = "src"
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = false
+ignore_missing_imports = true

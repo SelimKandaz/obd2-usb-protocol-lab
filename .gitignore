@@ -1,0 +1,127 @@
+# ==========================================================================
+# VOD700 Protocol Lab — .gitignore
+# Rule of thumb: NOTHING proprietary, private, or machine-identifying in Git.
+# Real firmware, real captures, updater binaries, and personal data live ONLY
+# in the local, untracked private_samples/ directory.
+# ==========================================================================
+
+# --- Local-only, never-committed sample vault -----------------------------
+private_samples/
+/samples/
+/vendor_binaries/
+
+# --- Official updater installers & extracted binaries ---------------------
+*.exe
+*.msi
+*.msix
+*.appx
+*.dll
+*.sys
+*.so
+*.dylib
+*.cab
+*.inf.bak
+
+# --- Firmware / update containers -----------------------------------------
+*.bin
+*.hex
+*.dfu
+*.fw
+*.img
+*.rom
+*.pkg
+*.upd
+*.enc
+firmware/
+firmware_*/
+
+# --- Packet captures (may contain private host / other-device traffic) ----
+*.pcap
+*.pcapng
+*.cap
+*.pcapng.gz
+*.ntar
+captures/*
+!captures/README.md
+!captures/.gitkeep
+
+# Generated capture-derived artifacts (may reflect private capture contents)
+reports/*_packets.jsonl
+reports/*_packets.csv
+reports/*_timeline.md
+
+# --- Reverse-engineering / decompiler project databases -------------------
+*.idb          # IDA 32-bit
+*.i64          # IDA 64-bit
+*.nam
+*.til
+*.id0
+*.id1
+*.id2
+*.bndb         # Binary Ninja
+*.gpr          # Ghidra project
+*.rep          # Ghidra repository
+ghidra_*/
+*.ghidra
+*.r2           # radare2 project
+*.jdb
+
+# --- Archives that typically hold vendor material -------------------------
+*.zip
+*.rar
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+
+# --- Logs, caches, temp RE output -----------------------------------------
+*.log
+logs/
+tmp/
+temp/
+scratch/
+*.tmp
+*.bak
+*.orig
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Credentials / secrets ------------------------------------------------
+.env
+.env.*
+*.secret
+*.key
+*.pem
+*.pfx
+credentials*.json
+secrets*.json
+
+# --- Python ---------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# --- Editors / IDEs -------------------------------------------------------
+.idea/
+.vscode/
+*.code-workspace
+
+# ==========================================================================
+# Explicit allow-list: small, TEXT, synthetic fixtures are safe to commit.
+# These carry NO proprietary firmware bytes and NO private host data.
+# ==========================================================================
+!fixtures/**
+!fixtures/synthetic/**

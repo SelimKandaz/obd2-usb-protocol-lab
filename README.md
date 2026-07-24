@@ -1,0 +1,130 @@
+# VOD700 Protocol Lab
+
+Evidence-driven, **read-only** reverse-engineering of the USB protocol spoken
+between the official ANCEL/Autophix VOD700 desktop updater and the VOD700
+automotive diagnostic device.
+
+> **Scope of this project is interoperability research and documentation.**
+> The immediate goal is *understanding* — descriptors, endpoints, framing,
+> handshake, checksums — and eventually an independent **read-only** client
+> that can identify the device and read safe metadata. Firmware modification is
+> explicitly **out of scope**.
+
+---
+
+## ⚠️ Safety first — read before doing anything
+
+This repository enforces a *passive-first* methodology. The full rules live in
+[`docs/SAFE_RESEARCH_RULES.md`](docs/SAFE_RESEARCH_RULES.md). The short version:
+
+- Keep the VOD700 **disconnected from any vehicle**. USB-to-desktop only.
+- **No** ECU commands, DTC clears, ECU writes, flashing, or storage changes.
+- **No** driver replacement (keep Microsoft `winusb.inf`). No Zadig.
+- **No** blind fuzzing, packet replay, or guessed vendor control transfers.
+- Every active USB request must be *understood, bounded, read-only, documented,
+  approved, and tested against a fixture/mock first.*
+- **Never commit** proprietary updater binaries, firmware, or unredacted
+  captures. Those live only in the local, untracked `private_samples/`.
+
+Confidence taxonomy used throughout: **VERIFIED · HIGH · MEDIUM · LOW · UNKNOWN**.
+Nothing is stated as fact from a single observation.
+
+---
+
+## Verified device facts
+
+Source: local Windows PnP/WinUSB enumeration (`docs/DEVICE_PROFILE.md`,
+`docs/USB_ENDPOINTS.md`). These are **VERIFIED** on the research host.
+
+| Property            | Value                                             |
+|---------------------|---------------------------------------------------|
+| Vendor ID           | `0x0483` (STMicroelectronics)                     |
+| Product ID          | `0x5265`                                           |
+| bcdUSB              | `2.00`                                             |
+| bcdDevice (REV)     | `0x0200`                                            |
+| Device class        | `0x00/0x00/0x00` (class deferred to interface)    |
+| Interface 0 class   | `0xFF / 0xFF / 0x00` (vendor-specific)            |
+| bMaxPacketSize0     | `64`                                               |
+| Manufacturer string | `Autophix`                                         |
+| Product string      | `Automotive Diagnostic Device`                    |
+| Serial string       | `Autophix DM` (fixed; not a unique serial)        |
+| Driver              | Microsoft `winusb.inf` (auto via `MS_COMP_WINUSB`)|
+| EP `0x81` IN        | Interrupt, 16 B, interval 1                        |
+| EP `0x01` OUT       | Interrupt, 16 B, interval 1                        |
+| EP `0x82` IN        | Bulk, 64 B, interval 32                            |
+| EP `0x02` OUT       | Bulk, 64 B, interval 32                            |
+
+*(Descriptor/string values above were read live from the device via the
+read-only WinUSB client — `vod700 descriptors`. Windows shows the serial as
+`Autophix_DM` in instance IDs because spaces are not allowed there.)*
+
+**Working hypothesis (UNVERIFIED):** `0x01/0x81` interrupt = command/status/ACK;
+`0x02/0x82` bulk = data/file/firmware transfer. Must be confirmed from capture.
+
+VID `0x0483` strongly implies an **STM32**-class MCU. This is context, not a
+claim about the application protocol.
+
+---
+
+## Repository layout
+
+```
+vod700-protocol-lab/
+├─ src/vod700/            # Python package (zero runtime dependencies)
+│  ├─ protocol/           # models, checksums, framing, parser
+│  ├─ capture/            # native pcapng + USBPcap decoder + exporters
+│  ├─ client/             # read-only WinUSB client (ctypes) + safety policy
+│  └─ mock/               # replay device + synthetic fixture builders
+├─ scripts/               # read-only PowerShell discovery tools
+├─ docs/                  # device profile, endpoints, capture & safety docs
+├─ reports/              # environment + static-analysis + status reports
+├─ fixtures/synthetic/    # small, TEXT, non-proprietary test fixtures
+├─ captures/              # (empty in git) redacted/synthetic captures only
+├─ research/              # working notes + confidence-tagged log
+├─ tools/                 # pointers to safe static-analysis tools (no binaries)
+├─ tests/                 # pytest suite (no hardware, no firmware writes)
+└─ private_samples/       # LOCAL ONLY, git-ignored: updater/firmware/captures
+```
+
+## Quickstart
+
+```bash
+python -m pip install -e ".[dev]"
+python -m pytest -q
+vod700 --help
+```
+
+Read-only device commands (safe; standard USB requests only):
+
+```bash
+vod700 devices          # enumerate VOD700 WinUSB interfaces
+vod700 descriptors      # device/config/string descriptors (read-only)
+vod700 endpoints        # confirm the endpoint map from the live device
+```
+
+Capture analysis (works offline; no tshark required):
+
+```bash
+vod700 capture analyze private_samples/captures/handshake.pcapng
+```
+
+Active/query commands (`listen`, `identify`, `version`) are **gated**: they
+refuse to run until the underlying request is verified from capture evidence
+and enabled in `src/vod700/client/policy.py`.
+
+## Status
+
+See [`docs/PROTOCOL_STATUS.md`](docs/PROTOCOL_STATUS.md) and
+[`reports/VOD700_REVERSE_ENGINEERING_STATUS.md`](reports/VOD700_REVERSE_ENGINEERING_STATUS.md).
+
+**Current blockers**
+1. Official updater is **not installed** on the research host → static analysis
+   (Phases 2–3) is pending the binary being placed in `private_samples/updater/`.
+2. **Wireshark/USBPcap not installed** → no USB capture yet. `npcap` (present via
+   Nmap) does **not** capture USB. See `docs/CAPTURE_HANDSHAKE.md`.
+
+## Legal & ethical
+
+Independent interoperability research on a device the operator owns. No bypass of
+licensing, authentication, signatures, or access controls; no redistribution of
+proprietary firmware or software. See `docs/SAFE_RESEARCH_RULES.md`.
