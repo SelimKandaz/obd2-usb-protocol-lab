@@ -41,6 +41,11 @@ if (-not $OutPath) { $OutPath = Join-Path $repo 'private_samples\captures\update
 if (-not $SignalPath) { $SignalPath = Join-Path $repo 'private_samples\captures\first_vendor_click.signal' }
 if (-not (Test-Path $usbpcapCmd)) { Fail "USBPcapCMD not found: $usbpcapCmd" }
 if (-not (Test-Path $UpdaterPath)) { Fail "Updater not found: $UpdaterPath" }
+$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Fail 'Administrator elevation is required. Re-run this exact script from an elevated PowerShell.'
+}
+Write-Host ("ELEVATION_OK " + [char]0x2014 + " Administrator token confirmed.")
 if (Get-UpdaterProcess) { Fail 'Update.exe is already running; close it before capture.' }
 $device = Get-Vod700
 if (-not $device -or $device.Status -ne 'OK') { Fail 'VOD700 is not present in Status=Started/OK.' }
@@ -70,6 +75,7 @@ try {
     if ($cap.HasExited) { Fail 'USBPcapCMD exited before updater launch.' }
     Write-Host ("CAPTURE_ACTIVE " + [char]0x2014 + " OPEN THE OFFICIAL UPDATER AND STOP BEFORE CLICKING UPDATE")
     Write-Host "USBPcap interface=$interface; dynamically selected address=$usbAddress; complete root hub; injection=disabled"
+    Write-Host "click signal path=$SignalPath"
 
     $deadline = (Get-Date).AddSeconds($UpdaterWaitSeconds)
     $updater = $null
