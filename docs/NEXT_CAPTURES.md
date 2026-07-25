@@ -1,19 +1,16 @@
-# Next Passive Captures
+# Next Passive Capture
 
-The capture path is now validated with a genuine reconnect trace. The next
-useful scenario is an updater-open reconnect differential:
+Do not repeat `baseline_reconnect.pcapng`. The remaining capture is the first
+official updater transaction, using `scripts/capture_updater_first_vendor.ps1`:
 
-1. Start complete-root-hub USBPcap capture with descriptor injection disabled.
-2. Launch `Update.exe` with no arguments.
-3. Do not click any control.
-4. Disconnect the USB-only VOD700 and wait about three seconds.
-5. Reconnect it and wait for Windows `Status=Started`.
-6. Leave the updater idle for about 15 seconds.
-7. Close it normally and stop the capture.
+1. Run the controller elevated with the VOD700 connected and Update.exe closed.
+2. When it prints `CAPTURE_ACTIVE — OPEN THE OFFICIAL UPDATER AND STOP BEFORE CLICKING UPDATE`, open the exact official updater with no arguments.
+3. Wait for `READY — CLICK UPDATE ONCE NOW`.
+4. Click Update exactly once, then create the owner click signal file shown by the controller.
+5. The controller waits two seconds, contains Update.exe, and stops USBPcap.
 
-Compare against `baseline_reconnect.pcapng`, separating standard enumeration
-from any updater-originated `0x01`, `0x81`, `0x02`, or `0x82` traffic.
-
-Do not proceed if the updater starts an update, opens firmware/erase material,
-requires a button click, or would allow a vendor write. No active request is
-authorized by the baseline capture.
+The controller never clicks the UI, injects descriptors, sends a vendor
+request, opens firmware/erase material, or continues into an update workflow.
+Compare the resulting trace against `baseline_reconnect.pcapng`, excluding
+the known endpoint-0 enumeration records before classifying the first vendor
+transfer.
