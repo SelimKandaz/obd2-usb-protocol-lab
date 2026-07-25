@@ -2,28 +2,30 @@
 
 Date: 2026-07-24
 
-## Available traces
+## Baseline reconnect capture: VERIFIED LIVE
 
-The accepted bounded run is
-`handshake_20260724_150600.pcapng`. A preliminary capture plumbing attempt,
-`handshake_20260724_145429.pcap`, was not accepted as a bounded result because
-its writer did not shut down normally.
+The supplied complete-root-hub capture contains two standard enumeration
+sequences:
 
-Both decode to the same six synthetic descriptor/configuration records in the
-same order. This repetition confirms the records come from USBPcap descriptor
-injection. It is not independent evidence of updater behavior.
+| Phase | Relative time | USB address | Records | Result |
+|---|---:|---:|---:|---|
+| before disconnect | 0.000000-0.016003 s | 5 | 10 | live endpoint-0 enumeration |
+| after reconnect | 81.121916-81.137621 s | 6 | 10 | live endpoint-0 enumeration |
 
-## Differential result
+The 81.120376-second gap and address transition 5 -> 6 are consistent with the
+device being disconnected and reconnected. The records have nonzero IRP IDs and
+are therefore distinct from the six zero-IRP synthetic records in the earlier
+idle capture. SET_ADDRESS is not present in the recorded window.
 
-| Channel | Preliminary plumbing trace | Accepted 18-second trace | Difference attributable to updater |
-|---|---:|---:|---:|
-| endpoint 0 synthetic records | 6 | 6 | 0 |
-| `0x01` interrupt OUT | 0 | 0 | 0 |
-| `0x81` interrupt IN | 0 | 0 | 0 |
-| `0x02` bulk OUT | 0 | 0 | 0 |
-| `0x82` bulk IN | 0 | 0 | 0 |
+## Endpoint differential
 
-No request/response, heartbeat, or bulk-transfer differential exists. A second
-passive scenario would be required to determine whether automatic detection is
-triggered only by a connect event or a non-update UI action. No such scenario
-was run in this milestone.
+| Channel | Baseline reconnect | Updater-idle capture | Interpretation |
+|---|---:|---:|---|
+| endpoint 0 control | 20 live | 6 synthetic | enumeration only; captures differ in source |
+| `0x01` interrupt OUT | 0 | 0 | no vendor request |
+| `0x81` interrupt IN | 0 | 0 | no vendor response |
+| `0x02` bulk OUT | 0 | 0 | no bulk write |
+| `0x82` bulk IN | 0 | 0 | no bulk read |
+
+No updater-open reconnect capture has been performed. Therefore no claim can be
+made about whether `Update.exe` opens WinUSB after reconnect.

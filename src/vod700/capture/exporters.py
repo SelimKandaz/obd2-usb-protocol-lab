@@ -36,8 +36,20 @@ def to_markdown(analysis: CaptureAnalysis, path: str | Path, *, max_rows: int = 
     lines.append(f"# Capture timeline — `{analysis.capture_id}`")
     lines.append("")
     lines.append(f"- Total transfers (USBPcap): **{len(analysis.transfers)}**")
+    lines.append(f"- Live URBs: **{len(analysis.live_transfers)}**")
+    lines.append(f"- Synthetic descriptor records: **{len(analysis.synthetic_transfers)}**")
     lines.append(f"- Link types seen: `{analysis.linktype_counts}`")
     lines.append("")
+
+    if analysis.device_address_changes:
+        lines.append("## Device-address changes")
+        lines.append("")
+        lines.append("| t (s) | From | To |")
+        lines.append("|------:|-----:|---:|")
+        t0 = analysis.transfers[0].timestamp if analysis.transfers else 0.0
+        for timestamp, old, new in analysis.device_address_changes:
+            lines.append(f"| {timestamp - t0:.6f} | {old} | {new} |")
+        lines.append("")
 
     lines.append("## Devices observed")
     lines.append("")
@@ -78,8 +90,8 @@ def to_markdown(analysis: CaptureAnalysis, path: str | Path, *, max_rows: int = 
 
     lines.append("## Packet timeline")
     lines.append("")
-    lines.append("| # | t (s) | Δt | EP | Dir | Type | Len | Payload (hex) |")
-    lines.append("|--:|------:|---:|----|-----|------|----:|---------------|")
+    lines.append("| # | t (s) | Δt | EP | Phase | Source | Type | Len | Payload (hex) |")
+    lines.append("|--:|------:|---:|----|--------|--------|------|----:|---------------|")
     t0 = analysis.transfers[0].timestamp if analysis.transfers else 0.0
     prev = t0
     for t in analysis.transfers[:max_rows]:
@@ -88,8 +100,9 @@ def to_markdown(analysis: CaptureAnalysis, path: str | Path, *, max_rows: int = 
         prev = t.timestamp
         payload = t.payload_hex if len(t.payload_hex) <= 96 else t.payload_hex[:96] + "…"
         lines.append(
-            f"| {t.index} | {rel:.4f} | {dt:.4f} | 0x{t.endpoint:02X} | {t.direction.value} "
-            f"| {t.transfer_type.value[:4]} | {t.length} | `{payload}` |"
+            f"| {t.index} | {rel:.4f} | {dt:.4f} | 0x{t.endpoint:02X} | "
+            f"{t.urb_phase or '-'} | {t.source} | {t.transfer_type.value[:4]} | "
+            f"{t.length} | `{payload}` |"
         )
     if len(analysis.transfers) > max_rows:
         lines.append("")

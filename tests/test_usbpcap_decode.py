@@ -27,6 +27,25 @@ def test_decode_bulk_out():
     assert len(d.payload) == 64
 
 
+def test_decode_classifies_live_urb_and_phase():
+    rec = make_usbpcap_record(
+        endpoint=0x80,
+        payload=b"\x12",
+        transfer_type=TransferType.CONTROL,
+        irp_id=0x1234,
+    )
+    d = decode_usbpcap(rec)
+    assert d.is_synthetic is False
+    assert d.phase == "completion"
+
+
+def test_decode_classifies_injected_descriptor():
+    rec = make_usbpcap_record(endpoint=0x80, payload=b"\x12", transfer_type=TransferType.CONTROL)
+    d = decode_usbpcap(rec)
+    assert d.is_synthetic is True
+    assert d.phase == "completion"
+
+
 def test_decode_rejects_too_short():
     with pytest.raises(ValueError):
         decode_usbpcap(b"\x00\x00")

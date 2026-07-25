@@ -2,39 +2,28 @@
 
 Date: 2026-07-24
 
-## VERIFIED
+## VERIFIED LIVE
 
-- The VOD700 descriptor declares interrupt OUT `0x01`, interrupt IN `0x81`,
-  bulk OUT `0x02`, and bulk IN `0x82`.
-- The accepted 18-second updater capture contains no live transfers on those
-  endpoints.
-- Vendor command bytes `0x0B` and `0x06` did not appear.
+- USBPcap captures genuine VOD700 standard enumeration on `\\.\USBPcap1`.
+- The device address changes from 5 to 6 across reconnect.
+- The descriptor declares interrupt `0x81`/`0x01` and bulk `0x82`/`0x02`.
+- The reconnect capture contains no records on those vendor-data endpoints.
 
-## HIGH - static evidence only
+## VERIFIED STATICALLY
 
-- Interrupt requests and responses are 16 bytes.
+- Updater requests/responses are fixed-width 16-byte interrupt transfers.
 - Request bytes 0 and 1 are `55 AA`.
-- Request byte 2 is the command.
-- Request byte 15 is `sum(frame[0:15]) & 0xFF`.
-- Requests use `0x01`; responses use `0x81`.
+- Request byte 15 is an additive sum8 over bytes 0 through 14.
+- Static candidates include `0x0B` and `0x06`.
 
-These remain high-confidence protocol hypotheses but are not dynamically
-validated by this capture.
+## UNKNOWN / BLOCKED
 
-## MEDIUM - static meaning only
-
-- `0x0B` is a capacity/size query candidate.
-- `0x06` is a block-read setup candidate followed by bulk IN.
-
-Neither meaning establishes that independent transmission is safe.
-
-## UNKNOWN
-
-- automatic-detection trigger
-- device information/version command
-- response checksum and status layout
+- updater-open behavior after reconnect
+- vendor command or response bytes
 - heartbeat cadence
-- actual 16-byte request/response examples
-- whether any vendor request is independently safe
+- response checksum and ACK/NACK layout
+- Update-button MFC handler identity
+- whether any candidate is safe to send
 
-No command satisfies the two-source rule.
+Standard endpoint-0 enumeration is transport evidence and must not be promoted
+to vendor protocol evidence. No active request satisfies the two-source rule.

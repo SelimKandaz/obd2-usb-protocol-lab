@@ -44,6 +44,9 @@ class UsbTransfer:
     actual_length: int | None = None
     urb_function: int | None = None
     status: int | None = None
+    irp_id: int | None = None
+    usbpcap_info: int | None = None
+    synthetic: bool = False
     capture_id: str = ""
 
     @property
@@ -57,6 +60,16 @@ class UsbTransfer:
     @property
     def length(self) -> int:
         return len(self.payload)
+
+    @property
+    def source(self) -> str:
+        return "synthetic_descriptor" if self.synthetic else "live_urb"
+
+    @property
+    def urb_phase(self) -> str | None:
+        if self.usbpcap_info is None:
+            return None
+        return "completion" if (self.usbpcap_info & 0x01) else "submit"
 
     def endpoint_label(self) -> str:
         return f"0x{self.endpoint:02X} {self.direction.value} {self.transfer_type.value}"
@@ -73,6 +86,10 @@ class UsbTransfer:
             "transfer_type": self.transfer_type.value,
             "urb_function": self.urb_function,
             "status": self.status,
+            "irp_id": self.irp_id,
+            "usbpcap_info": self.usbpcap_info,
+            "urb_phase": self.urb_phase,
+            "source": self.source,
             "requested_length": self.requested_length,
             "actual_length": self.actual_length,
             "length": self.length,

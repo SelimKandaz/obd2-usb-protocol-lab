@@ -58,7 +58,13 @@ class CaptureAnalysis:
         return {
             "capture_id": self.capture_id,
             "transfer_count": len(self.transfers),
+            "live_transfer_count": len(self.live_transfers),
+            "synthetic_transfer_count": len(self.synthetic_transfers),
             "devices": [d.to_dict() for d in self.devices],
+            "device_address_changes": [
+                {"timestamp": ts, "from": old, "to": new}
+                for ts, old, new in self.device_address_changes
+            ],
             "groups": [g.to_dict() for g in self.groups],
             "linktype_counts": {str(k): v for k, v in self.linktype_counts.items()},
             "warnings": self.warnings,
@@ -69,6 +75,24 @@ class CaptureAnalysis:
         for t in self.transfers:
             counts[f"0x{t.endpoint:02X}:{t.payload_hex}"] += 1
         return {k: v for k, v in counts.items() if v > 1}
+
+    @property
+    def live_transfers(self) -> list[UsbTransfer]:
+        return [t for t in self.transfers if not t.synthetic]
+
+    @property
+    def synthetic_transfers(self) -> list[UsbTransfer]:
+        return [t for t in self.transfers if t.synthetic]
+
+    @property
+    def device_address_changes(self) -> list[tuple[float, int, int]]:
+        changes: list[tuple[float, int, int]] = []
+        previous: int | None = None
+        for transfer in self.transfers:
+            if previous is not None and transfer.address != previous:
+                changes.append((transfer.timestamp, previous, transfer.address))
+            previous = transfer.address
+        return changes
 
 
 def analyze(path: str | Path, *, bus: int | None = None, address: int | None = None) -> CaptureAnalysis:
@@ -113,6 +137,9 @@ def analyze_bytes(
                 actual_length=len(rec.payload),
                 urb_function=rec.function,
                 status=rec.status,
+                irp_id=rec.irp_id,
+                usbpcap_info=rec.info,
+                synthetic=rec.is_synthetic,
                 capture_id=capture_id,
             )
         )
@@ -122,6 +149,10 @@ def analyze_bytes(
         warnings.append(
             "No USBPcap (linktype 249) packets found. This capture may be a network "
             f"capture. Link types seen: {non_usbpcap}."
+        )
+    if transfers and not any(not t.synthetic for t in transfers):
+        warnings.append(
+            "All USBPcap records are synthetic descriptor injection; no live URB records found."
         )
 
     devices = _summarize_devices(transfers)

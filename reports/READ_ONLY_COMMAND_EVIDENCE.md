@@ -2,27 +2,20 @@
 
 Date: 2026-07-24
 
-## Decision
+## Decision: BLOCKED
 
-No VOD700 request is sufficiently evidenced for independent transmission.
-`identify` and `version` remain disabled with safety `UNSAFE` and confidence
-`UNKNOWN`.
+The genuine reconnect capture validates only standard USB enumeration. It has no
+traffic on the VOD700 interrupt or bulk endpoints. The earlier updater-idle
+capture likewise has no live vendor traffic.
 
-## Evidence matrix
-
-| Candidate | Static evidence | Passive-capture evidence | Safe classification |
+| Candidate | Static evidence | Live passive evidence | Classification |
 |---|---|---|---|
-| `0x0B` | fixed 16-byte request; response bytes 3-6 consumed as LE32 size/capacity | absent | not established |
-| `0x06` | address-bearing request followed by bulk-IN in updater code | absent | not established |
-| device identity/version | no unique request identified | absent | not established |
+| `0x0B` | capacity/size candidate; additive-checksum frame template | absent | UNKNOWN / blocked |
+| `0x06` | address-bearing block-read candidate followed by bulk IN | absent | UNKNOWN / blocked |
+| identify/version | no unique request identified | absent | UNKNOWN / blocked |
 
-Neither `0x0B` nor `0x06` appeared as a vendor command in the accepted capture.
-The USBPcap function metadata value `0x000B` on descriptor records is unrelated
-to vendor command byte `0x0B`.
+The standard-control metadata value `0x000B` in enumeration records is not the
+vendor opcode `0x0B`. No request, response, endpoint, timeout, maximum response
+length, or read-only risk assessment is sufficiently evidenced for transmission.
 
-The two-source promotion rule therefore fails: static analysis exists, but
-passive dynamic corroboration does not. There is no request byte string,
-endpoint, expected response, timeout, maximum response length, or risk
-assessment that can be presented as an approval-ready active proposal.
-
-No packet was sent after analysis, and no active-request approval is requested.
+The client policy remains unchanged. No vendor request has been sent.

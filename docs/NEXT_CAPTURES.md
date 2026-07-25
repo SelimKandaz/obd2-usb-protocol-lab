@@ -1,28 +1,19 @@
 # Next Passive Captures
 
-The first accepted scenario - device already connected, then updater launched
-with no arguments - produced no updater-generated USB traffic during 18 seconds.
-Only USBPcap's injected descriptors were present.
+The capture path is now validated with a genuine reconnect trace. The next
+useful scenario is an updater-open reconnect differential:
 
-No additional capture is authorized by the completed milestone. If the owner
-later requests more passive work, the smallest useful next scenarios are:
+1. Start complete-root-hub USBPcap capture with descriptor injection disabled.
+2. Launch `Update.exe` with no arguments.
+3. Do not click any control.
+4. Disconnect the USB-only VOD700 and wait about three seconds.
+5. Reconnect it and wait for Windows `Status=Started`.
+6. Leave the updater idle for about 15 seconds.
+7. Close it normally and stop the capture.
 
-| Priority | Scenario | Purpose |
-|---:|---|---|
-| 1 | Start updater, then connect the USB-only device | test whether detection is connect-event driven |
-| 2 | Keep updater open and idle for 30 seconds | look for delayed heartbeat/polling |
-| 3 | Open a clearly read-only device-information view without update controls | isolate identity/version query |
+Compare against `baseline_reconnect.pcapng`, separating standard enumeration
+from any updater-originated `0x01`, `0x81`, `0x02`, or `0x82` traffic.
 
-Every scenario must remain capture-only:
-
-- device disconnected from any vehicle
-- updater unmodified and launched with no arguments
-- no Update, Upgrade, Download, Recover, Flash, Erase, Write, or Firmware action
-- no firmware image opened or used
-- no driver replacement
-- no replay or independent packet
-
-Use the dynamically discovered USBPcap address, not the Windows
-`DEVPKEY_Device_Address` hub-port value. Require at least two stable passive
-request/response observations plus matching static evidence before considering
-an active read-only proposal.
+Do not proceed if the updater starts an update, opens firmware/erase material,
+requires a button click, or would allow a vendor write. No active request is
+authorized by the baseline capture.

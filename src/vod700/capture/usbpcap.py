@@ -54,6 +54,16 @@ class UsbpcapRecord:
     payload: bytes
 
     @property
+    def is_synthetic(self) -> bool:
+        """True for USBPcap ``--inject-descriptors`` records."""
+        return self.irp_id == 0
+
+    @property
+    def phase(self) -> str:
+        """URB phase encoded by USBPcap's PDO-to-FDO information bit."""
+        return "completion" if (self.info & _INFO_PDO_TO_FDO) else "submit"
+
+    @property
     def transfer_type(self) -> TransferType:
         return _TRANSFER_MAP.get(self.transfer_code, TransferType.CONTROL)
 

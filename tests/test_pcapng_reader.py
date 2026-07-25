@@ -31,6 +31,31 @@ def test_analyze_bytes_groups_devices_directions():
     assert "0x01" in labels and "0x81" in labels
 
 
+def test_analyze_classifies_sources_and_address_changes():
+    first = make_usbpcap_record(
+        endpoint=0x80,
+        payload=b"\x01",
+        transfer_type=TransferType.CONTROL,
+        address=5,
+        irp_id=1,
+    )
+    second = make_usbpcap_record(
+        endpoint=0x80,
+        payload=b"\x02",
+        transfer_type=TransferType.CONTROL,
+        address=6,
+        irp_id=2,
+    )
+    analysis = analyze_bytes(
+        build_usbpcap_pcapng([(1_000_000, first), (2_000_000, second)]),
+        capture_id="reconnect",
+    )
+    assert len(analysis.live_transfers) == 2
+    assert analysis.synthetic_transfers == []
+    assert analysis.device_address_changes == [(0.002, 5, 6)]
+    assert analysis.transfers[0].urb_phase == "completion"
+
+
 def test_non_usbpcap_capture_warns():
     # A classic pcap with an Ethernet linktype (1) yields no USB transfers.
     import struct

@@ -14,8 +14,8 @@ the device, the vehicle, and the integrity of the research.
 - Do **not** press Update, Upgrade, Recover, Download, Flash, or Firmware
   buttons in the official updater unless the project owner explicitly approves a
   bounded, controlled capture.
-- Passive observation (launch → let it detect → close) is the only approved
-  interaction for the first capture. See `CAPTURE_HANDSHAKE.md`.
+- Passive observation (enumeration, reconnect, or launch → let it detect →
+  close) is the only approved interaction. See `CAPTURE_HANDSHAKE.md`.
 
 ## Driver / OS
 - Keep the Microsoft `winusb.inf` driver. Do **not** install Zadig, replace the
@@ -25,6 +25,8 @@ the device, the vehicle, and the integrity of the research.
 - **No** blind fuzzing.
 - **No** replay of unknown packets.
 - **No** guessed vendor control transfers.
+- Standard endpoint-0 enumeration is transport evidence only; it is not a
+  vendor command and must not be replayed or promoted.
 - **No** bypass of licensing, authentication, signatures, or access controls.
 
 ## Promotion of any active request
