@@ -69,7 +69,9 @@ New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 Remove-Item -LiteralPath $SignalPath -Force -ErrorAction SilentlyContinue
 $cap = $null
 try {
-    $captureArgs = '-d "{0}" -A -o "{1}" -b 4096' -f $interface, $OutPath
+    # USBPcapCMD rejects 4096 as the lower-bound buffer value. Use its
+    # documented default-sized kernel buffer and a full USB snapshot length.
+    $captureArgs = '-d "{0}" -A -o "{1}" -s 65535 -b 1048576' -f $interface, $OutPath
     $cap = Start-Process -FilePath $usbpcapCmd -ArgumentList $captureArgs -PassThru -WindowStyle Hidden
     Start-Sleep -Seconds 2
     if ($cap.HasExited) { Fail 'USBPcapCMD exited before updater launch.' }
