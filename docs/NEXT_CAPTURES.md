@@ -7,7 +7,7 @@ official updater transaction, using `scripts/capture_updater_first_vendor.ps1`:
 2. When it prints `CAPTURE_ACTIVE — OPEN THE OFFICIAL UPDATER AND STOP BEFORE CLICKING UPDATE`, open the exact official updater with no arguments.
 3. Wait for `READY — CLICK UPDATE ONCE NOW`.
 4. Click Update exactly once.
-5. The controller observes an 18-second bounded post-click window, contains
+5. The controller observes a 3-second bounded post-click window, contains
    Update.exe, and stops USBPcap automatically.
 
 The controller never clicks the UI, injects descriptors, sends a vendor

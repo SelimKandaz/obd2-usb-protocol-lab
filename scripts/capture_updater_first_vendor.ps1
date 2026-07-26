@@ -13,7 +13,7 @@ param(
     [string]$UpdaterPath = '',
     [string]$OutPath = '',
     [int]$UpdaterWaitSeconds = 90,
-    [int]$PostReadySeconds = 18
+    [int]$PostReadySeconds = 3
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,7 +26,7 @@ function Get-UpdaterProcess {
         Where-Object {
             if ($_.Name -ine 'Update.exe') { return $false }
             if ($_.ExecutablePath -and (([IO.Path]::GetFullPath($_.ExecutablePath)) -ieq ([IO.Path]::GetFullPath($UpdaterPath)))) { return $true }
-            $_.CommandLine -and ($_.CommandLine -like ('*' + [IO.Path]::GetFileName($UpdaterPath) + '*'))
+            return $false
         }
 }
 function Get-Vod700 {
@@ -138,6 +138,7 @@ try {
     if ($cap.HasExited) { Fail 'USBPcapCMD exited before updater launch.' }
     Write-Host ("CAPTURE_ACTIVE " + [char]0x2014 + " OPEN THE OFFICIAL UPDATER AND STOP BEFORE CLICKING UPDATE")
     Write-Host "USBPcap interface=$interface; dynamically selected address=$usbAddress; complete root hub; injection=disabled"
+    Write-Host "updater working directory=$(Split-Path -Parent $UpdaterPath)"
 
     $deadline = (Get-Date).AddSeconds($UpdaterWaitSeconds)
     $updater = $null
@@ -147,6 +148,7 @@ try {
         Start-Sleep -Milliseconds 250
     }
     if (-not $updater) { Fail 'Update.exe was not detected before timeout.' }
+    Write-Host "official updater detected=$($updater.ExecutablePath)"
     Start-Sleep -Seconds 3
     Write-Host ("READY " + [char]0x2014 + " CLICK UPDATE ONCE NOW")
     Write-Host ("POST_READY_WINDOW " + [char]0x2014 + " observing for $PostReadySeconds seconds; do not click anything else.")
