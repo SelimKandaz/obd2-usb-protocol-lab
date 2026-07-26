@@ -88,5 +88,22 @@ would violate the project's read-only safety boundary.
 - Worktree: clean
 - Final validation commit: use `git rev-parse HEAD` (the worktree is clean)
 
+## Remaining blockers and recommended priorities
+
+No physical interaction is required for the current read-only acceptance
+scope. If research continues, the safest productive order is:
+
+1. Keep the canonical reconnect and updater captures immutable; do not repeat
+   them as baselines.
+2. Perform static-only call-graph work for version/identify candidates; do not
+   invent bytes from timeout paths or non-VOD700 branches.
+3. If a new physical experiment is explicitly approved, passively capture a
+   distinct updater state and stop before any `0x02` bulk OUT. Record the raw
+   response before attempting interpretation.
+4. Use `knowledge/protocol_knowledge.json` to build an ESP32 fixture that
+   reproduces only the verified `0x0B`/`0x8B` exchange and checksum behavior.
+5. Treat live ECU/OBD2 bridging, `0x06`, firmware, erase, and update operations
+   as separate blocked projects requiring new evidence and safety review.
+
 The project is complete for the verified, read-only USB scope. The unknown
 update/ECU protocol surface is explicitly blocked rather than fabricated.
