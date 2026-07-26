@@ -8,7 +8,12 @@ from .policy import (
     assert_dispatchable,
     list_commands,
 )
-from .transaction import StorageQueryResult, TransactionError, WinUsbPipeTransport, run_storage_query
+from .transaction import (
+    StorageQueryResult,
+    TransactionError,
+    WinUsbPipeTransport,
+    run_storage_query,
+)
 
 __all__ = [
     "CommandSpec",

@@ -14,6 +14,7 @@
 | `0x0B` response/value | partial | `0x8B`, value `0x02000000`, static decode agrees | HIGH bytes; MEDIUM meaning | approval required |
 | `0x06` request bytes/fields | done | three live addresses and static builder match | VERIFIED HIGH | approval required |
 | `0x06` response/value | partial | `0x86`, zero value, three live responses | HIGH bytes; MEDIUM meaning | approval required |
+| Owner-approved live `0x0B` attempt | unresolved | one exact `0x0B` OUT; live `0x81` response command `0x05`; raw response not retained by pre-diagnostic path | UNKNOWN state/response semantics | blocked |
 | Bulk-IN preliminary read | partial | repeated 4,096-byte and 8-byte patterns on `0x82` | HIGH pattern; UNKNOWN meaning | approval required |
 | Bulk-OUT firmware write | observed in separate update-stage trace | one official-updater `0x02` submit, 4,104 bytes; no lab-generated write | VERIFIED dangerous | no |
 | Heartbeat / polling | partial | repeated `0x86` and bulk-IN payloads within update path | MEDIUM | no |
@@ -23,6 +24,7 @@
 ## Safety gate
 
 `identify`, `version`, `0x0B`, and `0x06` remain disabled for live transport.
-The parser and offline builders preserve the captured bytes, but no active
-vendor request has been sent by this project. Owner approval is required before
-any live execution, followed by mock/replay validation first.
+One owner-approved `0x0B` attempt was made on 2026-07-25; the device returned an
+unexpected response command `0x05`, so the command was not promoted. The exact
+request remains available, and future diagnostics now preserve raw response
+bytes, but another live request requires a new explicit owner approval.

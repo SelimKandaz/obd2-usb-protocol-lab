@@ -24,9 +24,9 @@ from .models import (
 from .verified import (
     BLOCK_READ,
     STORAGE_QUERY,
+    BulkWriteObservation,
     VerifiedRequest,
     VerifiedResponse,
-    BulkWriteObservation,
     build_block_read,
     build_storage_query,
     classify_bulk_in,

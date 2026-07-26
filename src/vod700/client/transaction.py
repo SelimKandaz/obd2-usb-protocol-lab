@@ -66,7 +66,16 @@ def run_storage_query(transport: PipeTransport) -> StorageQueryResult:
     try:
         response = parse_response(raw_response)
     except ValueError as exc:
-        raise TransactionError(f"invalid storage-query response: {exc}") from exc
+        # Preserve the exact bytes in the diagnostic.  A device can return a
+        # well-framed status/NACK command that is not yet part of the
+        # evidence-backed parser; dropping those bytes makes a single live
+        # observation impossible to classify without retransmitting it.
+        raise TransactionError(
+            f"invalid storage-query response: {exc}; raw={raw_response.hex()}"
+        ) from exc
     if response.command != 0x0B:
-        raise TransactionError(f"unexpected response command 0x{response.response_command:02X}")
+        raise TransactionError(
+            f"unexpected response command 0x{response.response_command:02X}; "
+            f"raw={response.raw.hex()}"
+        )
     return StorageQueryResult(request, response, written, monotonic() - started)
