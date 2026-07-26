@@ -25,6 +25,15 @@ little-endian value `0x02000000`. It is followed by `0x06` requests at
 The third `0x06` completion is cancelled by containment; this is an expected
 capture boundary, not a device NACK.
 
+## Separate update-stage differential
+
+The later private update-stage capture is intentionally separate from the
+preliminary fixture. It contains 12 live records: four interrupt OUT/IN frame
+pairs and one 4,104-byte `0x02` bulk OUT submit. The bulk block begins
+`55 AA 55 AA` and its trailing big-endian SUM32 is `0x0007FCC2`. This confirms
+the static dangerous bulk-write builder at `0x00411330`; it does not promote
+any active command and is not part of the read-only evidence set.
+
 ## Static/dynamic result
 
 Static function `0x0040E670` and helper `0x00410010` independently predict the

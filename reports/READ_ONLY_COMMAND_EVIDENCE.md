@@ -34,6 +34,7 @@ enabled or sent by the client.
 
 The request is read-oriented in the observed updater path, but it precedes
 address-bearing reads and the update state machine. Its semantic purpose is
-not independently proven to be harmless, and a live query could change device
-state or expose later update behavior. Therefore the client policy remains
+not independently proven to be harmless. A separate update-stage capture also
+shows that the official updater can progress to a dangerous `0x02` bulk OUT
+after preliminary interrupt exchanges. Therefore the client policy remains
 blocked. Explicit owner approval is required before any active execution.

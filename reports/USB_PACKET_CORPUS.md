@@ -41,3 +41,10 @@ OUT 0x01  55aa060020fb01001000000000000031
 The final `0x06` request has a cancelled completion (`status=0xC0010000`)
 because the bounded controller contained the updater. No independent packet
 was sent by the lab tooling.
+
+## Separate update-stage corpus
+
+`private_samples/captures/updater_update_stage.pcapng` contains 12 live records
+from a later updater state. It has `0x01`/`0x81` frames and one 4,104-byte
+`0x02` bulk OUT submit. The firmware payload is private and is represented only
+by capture hashes and checksum metadata in `reports/UPDATE_STAGE_CAPTURE_ANALYSIS.md`.

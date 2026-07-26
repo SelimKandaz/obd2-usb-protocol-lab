@@ -7,6 +7,7 @@ write endpoints, or promote any command through the safety policy.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha256
 
 from .checksums import sum8
 
@@ -115,3 +116,35 @@ def classify_bulk_in(payload: bytes) -> str:
     if payload == bytes.fromhex("ffffffff000ff1fe"):
         return "8-byte-ffffffff000ff1fe-trailer"
     return "unknown"
+
+
+@dataclass(frozen=True)
+class BulkWriteObservation:
+    """Metadata for a captured bulk-OUT block; never a transmit builder."""
+
+    raw_length: int
+    prefix: bytes
+    body_length: int
+    trailing_sum32_be: int
+    calculated_sum32: int
+    checksum_valid: bool
+    payload_sha256: str
+
+
+def inspect_bulk_write(payload: bytes) -> BulkWriteObservation:
+    """Inspect the observed 0x1008-byte bulk-OUT layout without enabling writes."""
+    if len(payload) < 8:
+        raise ValueError("bulk write observation is too short")
+    prefix = payload[:4]
+    body = payload[:-4]
+    trailing = int.from_bytes(payload[-4:], "big")
+    calculated = sum(body) & 0xFFFFFFFF
+    return BulkWriteObservation(
+        raw_length=len(payload),
+        prefix=prefix,
+        body_length=len(body),
+        trailing_sum32_be=trailing,
+        calculated_sum32=calculated,
+        checksum_valid=trailing == calculated,
+        payload_sha256=sha256(payload).hexdigest(),
+    )

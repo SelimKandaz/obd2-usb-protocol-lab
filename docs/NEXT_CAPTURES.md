@@ -19,3 +19,8 @@ Before any live command execution:
 No live `0x0B` or `0x06` request is authorized by this document. No firmware,
 erase, bulk OUT, driver replacement, vehicle connection, or replay of the
 captured request is authorized.
+
+For a future bounded passive capture, the controller launches `Update.exe`
+itself with `private_samples/updater` as the working directory. Do not launch
+a second copy manually; this avoids the `C:\Windows\System32\bin\McuCode.bin`
+working-directory failure.

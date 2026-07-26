@@ -4,6 +4,7 @@ from vod700.protocol.verified import (
     build_block_read,
     build_storage_query,
     classify_bulk_in,
+    inspect_bulk_write,
     parse_request,
     parse_response,
 )
@@ -42,3 +43,12 @@ def test_captured_bulk_patterns_are_classified_without_semantics():
     assert classify_bulk_in(bytes.fromhex("aa55aa55") + b"\xff" * 4092) == "4096-byte-aa55aa55-ff-fill"
     assert classify_bulk_in(bytes.fromhex("ffffffff000ff1fe")) == "8-byte-ffffffff000ff1fe-trailer"
     assert classify_bulk_in(b"other") == "unknown"
+
+
+def test_bulk_write_observation_validates_captured_sum_without_builder():
+    body = bytes.fromhex("55aa55aa") + bytes(range(32))
+    frame = body + (sum(body) & 0xFFFFFFFF).to_bytes(4, "big")
+    observed = inspect_bulk_write(frame)
+    assert observed.prefix == b"\x55\xAA\x55\xAA"
+    assert observed.body_length == len(body)
+    assert observed.checksum_valid is True

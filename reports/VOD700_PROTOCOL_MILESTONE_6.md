@@ -47,3 +47,15 @@ the evidenced `0x0B` and `0x06` frames, response validation, and exact bulk
 pattern classification. Targeted tests cover captured bytes, fields,
 checksums, invalid frames, and bulk observations. Live client policy remains
 blocked pending explicit owner approval.
+
+The separate update-stage trace is documented in
+`reports/UPDATE_STAGE_CAPTURE_ANALYSIS.md`; it contains one official-updater
+bulk OUT and is explicitly excluded from read-only command evidence.
+
+## Controller correction
+
+The successful capture exposed a prior operational defect: manually launching
+the updater from `C:\Windows\System32` made it search for
+`C:\Windows\System32\bin\McuCode.bin`. The controller now launches the exact
+official binary itself with `private_samples/updater` as its working directory,
+with no arguments, and still waits for the owner’s single Update click.

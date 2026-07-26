@@ -26,9 +26,11 @@ from .verified import (
     STORAGE_QUERY,
     VerifiedRequest,
     VerifiedResponse,
+    BulkWriteObservation,
     build_block_read,
     build_storage_query,
     classify_bulk_in,
+    inspect_bulk_write,
     parse_request,
     parse_response,
 )
@@ -51,9 +53,11 @@ __all__ = [
     "BLOCK_READ",
     "VerifiedRequest",
     "VerifiedResponse",
+    "BulkWriteObservation",
     "build_storage_query",
     "build_block_read",
     "parse_request",
     "parse_response",
     "classify_bulk_in",
+    "inspect_bulk_write",
 ]

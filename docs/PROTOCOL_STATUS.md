@@ -15,7 +15,7 @@
 | `0x06` request bytes/fields | done | three live addresses and static builder match | VERIFIED HIGH | approval required |
 | `0x06` response/value | partial | `0x86`, zero value, three live responses | HIGH bytes; MEDIUM meaning | approval required |
 | Bulk-IN preliminary read | partial | repeated 4,096-byte and 8-byte patterns on `0x82` | HIGH pattern; UNKNOWN meaning | approval required |
-| Bulk-OUT firmware write | not observed | zero `0x02` records in bounded capture | VERIFIED negative | no |
+| Bulk-OUT firmware write | observed in separate update-stage trace | one official-updater `0x02` submit, 4,104 bytes; no lab-generated write | VERIFIED dangerous | no |
 | Heartbeat / polling | partial | repeated `0x86` and bulk-IN payloads within update path | MEDIUM | no |
 | Firmware version query | blocked | no distinct command identified | UNKNOWN | no |
 | Response status/NACK semantics | partial | only successful `0x8B`/`0x86` responses observed | MEDIUM | no |

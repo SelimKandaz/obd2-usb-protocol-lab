@@ -3,10 +3,11 @@
     Passive, owner-signaled capture around the first official Update action.
 .DESCRIPTION
     Captures the complete selected USBPcap root hub with Update.exe initially
-    closed. The owner opens the official updater and clicks Update once only
-    after the controller prints READY. The controller then observes a bounded
-    post-click window and contains the updater. It never clicks the UI and
-    never sends a project-generated USB request.
+    closed. The controller launches the official updater with its package
+    directory as the working directory. The owner clicks Update once only
+    after READY. The controller then observes a bounded window and contains
+    the updater. It never clicks the UI and never sends a project-generated
+    USB request.
 #>
 [CmdletBinding()]
 param(
@@ -124,6 +125,7 @@ $outDir = Split-Path -Parent $OutPath
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 $cap = $null
 $sink = $null
+$updaterProcess = $null
 try {
     $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
     $pipeName = "vod700_first_vendor_$stamp"
@@ -136,19 +138,22 @@ try {
     }
     Start-Sleep -Seconds 2
     if ($cap.HasExited) { Fail 'USBPcapCMD exited before updater launch.' }
-    Write-Host ("CAPTURE_ACTIVE " + [char]0x2014 + " OPEN THE OFFICIAL UPDATER AND STOP BEFORE CLICKING UPDATE")
+    Write-Host ("CAPTURE_ACTIVE " + [char]0x2014 + " OFFICIAL UPDATER WILL BE LAUNCHED IN ITS PACKAGE DIRECTORY; STOP BEFORE CLICKING UPDATE")
     Write-Host "USBPcap interface=$interface; dynamically selected address=$usbAddress; complete root hub; injection=disabled"
-    Write-Host "updater working directory=$(Split-Path -Parent $UpdaterPath)"
+    $updaterDir = Split-Path -Parent $UpdaterPath
+    Write-Host "updater working directory=$updaterDir"
+    $updaterProcess = Start-Process -FilePath $UpdaterPath -WorkingDirectory $updaterDir -ArgumentList @() -PassThru -WindowStyle Normal
+    Write-Host "updater launch requested with no arguments; pid=$($updaterProcess.Id)"
 
     $deadline = (Get-Date).AddSeconds($UpdaterWaitSeconds)
-    $updater = $null
+    $updaterInfo = $null
     while ((Get-Date) -lt $deadline) {
-        $updater = Get-UpdaterProcess | Select-Object -First 1
-        if ($updater) { break }
+        $updaterInfo = Get-UpdaterProcess | Select-Object -First 1
+        if ($updaterInfo) { break }
         Start-Sleep -Milliseconds 250
     }
-    if (-not $updater) { Fail 'Update.exe was not detected before timeout.' }
-    Write-Host "official updater detected=$($updater.ExecutablePath)"
+    if (-not $updaterInfo) { Fail 'Update.exe was not detected before timeout.' }
+    Write-Host "official updater detected=$($updaterInfo.ExecutablePath)"
     Start-Sleep -Seconds 3
     Write-Host ("READY " + [char]0x2014 + " CLICK UPDATE ONCE NOW")
     Write-Host ("POST_READY_WINDOW " + [char]0x2014 + " observing until the first USB record or $PostReadyMaxSeconds seconds; do not click anything else.")
@@ -166,13 +171,20 @@ try {
     } else {
         Write-Host ("POST_READY_TIMEOUT " + [char]0x2014 + " no USB record observed; containing updater.")
     }
-    try { $updater.CloseMainWindow() | Out-Null; Start-Sleep -Seconds 3 } catch { }
-    if (-not $updater.HasExited) { try { Stop-Process -Id $updater.ProcessId -Force -ErrorAction SilentlyContinue } catch { } }
+    try { $updaterProcess.CloseMainWindow() | Out-Null; Start-Sleep -Seconds 3 } catch { }
+    if (-not $updaterProcess.HasExited) { try { Stop-Process -Id $updaterProcess.Id -Force -ErrorAction SilentlyContinue } catch { } }
     $sink.Dispose()
     $sink = $null
     try { Wait-Process -Id $cap.Id -Timeout 5 -ErrorAction SilentlyContinue } catch { }
 }
 finally {
+    if ($updaterProcess) {
+        try { $updaterProcess.Refresh() } catch { }
+        if (-not $updaterProcess.HasExited) {
+            try { $updaterProcess.CloseMainWindow() | Out-Null; Start-Sleep -Seconds 2 } catch { }
+            if (-not $updaterProcess.HasExited) { try { Stop-Process -Id $updaterProcess.Id -Force -ErrorAction SilentlyContinue } catch { } }
+        }
+    }
     if ($sink) {
         try { $sink.Dispose() } catch { }
     }
