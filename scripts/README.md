@@ -17,6 +17,7 @@ powershell -ExecutionPolicy Bypass -File scripts\<name>.ps1
 | `capture_prereqs.ps1`       | Check Wireshark/USBPcap/Npcap; print current bus/address + filters. |
 | `hash_updater_files.ps1`    | Phase 2 inventory: size, SHA-256, PE arch, signature (point at `private_samples\updater`). |
 | `capture_updater_handshake.ps1` | Phase 4 orchestrator: bounded passive capture of the updater detecting the device. Refuses if USBPcap absent; never touches update UI. `-DryRun` to validate. |
+| `verify_project.ps1`         | Reproducible pytest/Ruff/mypy/compileall validation and optional wheel build. |
 
 Notes:
 - `hash_updater_files.ps1` requires `-Path`; nothing is executed, only hashed and
