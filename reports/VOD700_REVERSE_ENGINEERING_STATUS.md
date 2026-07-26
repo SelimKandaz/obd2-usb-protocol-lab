@@ -1,86 +1,88 @@
-# VOD700 Reverse-Engineering — Status Report
+# VOD700 Reverse-Engineering — Current Project Status
 
-Master status for the VOD700 Protocol Lab. Host username and machine-specific
-paths are redacted. Confidence tags: VERIFIED · HIGH · MEDIUM · LOW · UNKNOWN.
+Date: 2026-07-25
 
-## 1. Repository
-- Path (redacted): `…\vod700-protocol-lab`
-- Layout per `README.md`; Python package under `src/vod700/`.
-- `private_samples/` is local-only and git-ignored (see `docs/PRIVATE_SAMPLES.md`).
+This is the current status of the independent, evidence-driven VOD700 USB
+client. Historical milestone reports retain the earlier snapshots; this file
+is the present acceptance record.
 
-## 2. Git
-- Initialized (`main`). Focused commits per the commit policy (see `git log`).
+## Device and transport
 
-## 3. Windows & tool versions (VERIFIED)
-- Windows 11 Home 10.0.26200 (64-bit); PowerShell 5.1.26100.
-- .NET Framework 4.8; .NET SDK 9.0.316 (runtimes 3.1/8.0/9.0).
-- Python 3.14 (also 3.13/3.12/3.11/3.9); git 2.53; Nmap + Npcap present.
-- Wireshark / tshark / USBPcap / 7-Zip: **not installed**.
-- Full detail: [`ENVIRONMENT.md`](ENVIRONMENT.md).
+- VID/PID: `0x0483/0x5265`, revision `0x0200`
+- Microsoft WinUSB (`winusb.inf`), no driver replacement
+- One vendor-specific interface (`0xFF/0xFF/0x00`)
+- Interrupt OUT/IN: `0x01`/`0x81`, 16-byte packets
+- Bulk OUT/IN: `0x02`/`0x82`, 64-byte packets
+- Two Windows interface paths resolve to the same endpoint map
+- Live descriptor/device/endpoint checks pass with the connected VOD700
 
-## 4. Official updater path & identity
-- **NOT PRESENT** on the host. No registry uninstall entry; no matching
-  installer/executable under the user profile. → Phases 2–3 blocked.
+## Evidence chain
 
-## 5. Updater technology
-- **UNKNOWN** — cannot be determined until the updater binary is provided.
+Canonical reconnect baseline:
 
-## 6. SHA-256 hashes
-- Updater: none (absent). Firmware: none (absent).
-- Tooling to produce them is ready: `scripts\hash_updater_files.ps1`.
+- `private_samples/captures/baseline_reconnect.pcapng`
+- 20 live endpoint-0 records, address transition `5 -> 6`
+- SHA-256: `3484911891084476D74E8D3553D15F13BE5676E09EED241388E7E5AEC4182878`
 
-## 7. WinUSB imports / classes found
-- In the updater: **UNKNOWN** (absent).
-- On the device side (VERIFIED, live): the device binds to Microsoft WinUSB via
-  `MS_COMP_WINUSB`; our own read-only client uses `SetupDiGetClassDevs`,
-  `WinUsb_Initialize`, `WinUsb_GetDescriptor`, `WinUsb_QueryPipe` — reads only.
+Canonical updater preliminary transaction:
 
-## 8. VID/PID/interface references (VERIFIED, live)
-- VID `0x0483` (STMicroelectronics), PID `0x5265`, REV `0x0200`, bcdUSB `2.00`.
-- Strings: Manufacturer `Autophix`, Product `Automotive Diagnostic Device`,
-  Serial `Autophix DM`.
-- Interface 0: class/sub/proto `0xFF/0xFF/0x00`, 4 endpoints
-  (`0x81` int-IN/16, `0x01` int-OUT/16, `0x82` bulk-IN/64, `0x02` bulk-OUT/64).
-- Interface GUIDs: `{f70242c7-…}`, `{dee824ef-…}` (+ generic USB device GUID).
+- `private_samples/captures/updater_first_vendor.pcapng`
+- 9,748 bytes; 22 live URBs; bus 1/address 6
+- SHA-256: `5475B9B6C40413BB97C791C15CF286503626AEC64D90BD831CA3B1D278A8B731`
+- First request: `55 AA 0B 00 00 00 00 00 00 00 00 00 00 00 00 0A`
+- Response: `AA 55 8B 00 00 00 02 00 00 00 00 00 00 00 00 8C`
+- Subsequent observed read-only-shaped frames: three `0x06`/`0x86` pairs and
+  preliminary bulk-IN patterns
 
-## 9. Firmware / update files discovered
-- **None.** → Phase 8 blocked pending a sample in `private_samples/firmware/`.
+Separate updater update-stage capture:
 
-## 10. Is USBPcap installed?
-- **No.** Neither USBPcap nor Wireshark/tshark is installed. Npcap is present
-  (via Nmap) but captures **network** interfaces only, not USB.
+- `private_samples/captures/updater_update_stage.pcapng`
+- One official-updater `0x02` bulk OUT (4,104 bytes) was observed
+- The payload is not reproduced, implemented, or sent by this project
 
-## 11. Passive capture command / procedure
-- Install Wireshark **with the USBPcap component**, then follow
-  [`../docs/CAPTURE_HANDSHAKE.md`](../docs/CAPTURE_HANDSHAKE.md). Target the
-  current USB address (print it with `scripts\capture_prereqs.ps1`; it was `9`).
-  Passive only: launch updater → let it detect → wait 10–20 s → close → stop.
+## Physical validation
 
-## 12. Files created
-- Python package (`src/vod700/**`): protocol models/checksums/framing/parser;
-  native pcapng+USBPcap analyzer; read-only WinUSB client + safety policy;
-  mock/replay + synthetic fixtures; CLI.
-- Read-only PowerShell scripts (`scripts/**`).
-- Docs (`docs/**`), reports (`reports/**`), tests (`tests/**`).
+The exact `0x0B` request was sent through the policy-gated WinUSB adapter under
+explicit owner approval. The physical VOD700 returned the canonical `0x8B`
+response and value `0x02000000` (33,554,432). A prior isolated attempt returned
+an unclassified `0x05`; it was not retried blindly and its semantics remain
+unknown. The successful validation is documented in
+`reports/LIVE_STORAGE_QUERY_VALIDATION.md`.
 
-## 13. Tests run (VERIFIED this session)
-- `pytest`: **41 passed**.
-- `ruff check`: clean. `mypy`: clean (22 source files).
-- Live read-only smoke: `vod700 devices` / `descriptors` / `endpoints` all
-  succeeded against the connected device.
+## Implemented software
 
-## 14. Current blockers
-1. **USBPcap/Wireshark not installed** → no USB capture yet (Phases 4–7).
-2. **Official updater absent** → no static analysis (Phases 2–3).
-3. **No firmware sample** → no container analysis (Phase 8).
+- Native PCAPNG and USBPcap record decoding, submit/completion correlation,
+  address filtering, endpoint timelines, and checksum analysis
+- Evidence-backed 16-byte framing, additive SUM8 parsing/building, `0x0B` and
+  `0x06` offline lenses, and captured bulk-pattern inspection
+- Mock/replay transport and targeted fixture tests
+- WinUSB descriptor/probe client using the existing Microsoft driver
+- Overlapped WinUSB pipe adapter with a policy gate
+- Explicit `vod700 storage-query --approve-live` command for exactly one
+  verified `0x0B`/`0x8B` transaction; default policy remains disabled
+- Wheel packaging and reproducible Windows/PowerShell workflows
 
-## 15. Exact next action required from the project owner
-1. Install **Wireshark** and tick the **USBPcap** component during setup.
-2. Place the official VOD700 updater into `private_samples\updater\`
-   (installer or extracted folder — do **not** run an update).
-3. Record the passive handshake capture per `docs/CAPTURE_HANDSHAKE.md` and save
-   it to `private_samples\captures\handshake.pcapng`.
+## Deliberately not implemented
 
-With any one of these, the corresponding analysis pipeline (already built and
-tested) can run immediately. No active USB communication will occur until a
-request is verified, documented, approved, and fixture-tested.
+- `0x06` dispatch: adjacent to bulk reads/update state; bytes are parsed only
+  offline
+- Any `0x02` bulk OUT, firmware, erase, flash, recover, or update operation
+- Guessed identify/version commands: no distinct evidence-backed bytes exist
+- ECU/OBD2 diagnostic commands, DTC clearing, vehicle connection, or ECU writes
+
+These are not missing coding tasks that can be completed honestly from the
+current evidence. Implementing them would require unknown protocol bytes or
+would violate the project's read-only safety boundary.
+
+## Validation and artifact
+
+- `pytest`: 54 passed
+- Ruff: clean
+- mypy: clean (24 source files)
+- Python compilation: clean
+- Wheel build: successful (`dist/vod700-0.1.0-py3-none-any.whl`)
+- Worktree: clean
+- Final commit: `594581c083d070a5ec217fa0627816c4384e1820`
+
+The project is complete for the verified, read-only USB scope. The unknown
+update/ECU protocol surface is explicitly blocked rather than fabricated.
