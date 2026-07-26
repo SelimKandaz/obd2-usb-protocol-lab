@@ -13,18 +13,21 @@ construction.
 | `vod700 endpoints`     | `WinUsb_QueryPipe` endpoint map                      | read-only  |
 | `vod700 policy`        | show the command safety policy                        | local only |
 | `vod700 capture ...`   | analyze a pcapng/pcap (offline, no device)           | local only |
+| `vod700` transaction module | replay/mock validation of captured `0x0B` bytes | local only |
 
 These issue only **standard** USB requests (the same ones enumeration already
 performs) or touch no device at all. There is intentionally **no**
 `WinUsb_WritePipe` or `WinUsb_ReadPipe` binding in `client/winusb.py`.
 
-## What is gated (refused until verified)
+## What is gated (refused until explicitly approved)
 
 | Command            | Why it is refused                                             |
 |--------------------|--------------------------------------------------------------|
 | `vod700 identify`  | No verified request bytes exist yet (see `policy.py`).       |
 | `vod700 version`   | No verified request bytes exist yet.                          |
 | `vod700 listen`    | Reading the interrupt IN endpoint needs an approved ReadPipe. |
+| `storage_query`    | Bytes are verified, but the query precedes update-state behavior. |
+| `block_read`       | It is adjacent to bulk/update behavior and is unsafe to dispatch. |
 
 Running any of these prints the exact blocking reasons and exits non-zero. This
 is the safety gate working, not a bug.
@@ -37,8 +40,14 @@ capture reference and a static-analysis reference. To enable one you must:
 1. Capture the updater issuing it (passive capture).
 2. Confirm the request/response bytes in the analyzer across multiple captures.
 3. Cross-check the byte construction in the updater's static analysis.
-4. Set `enabled=True` with the evidence references filled in.
-5. Test it against a fixture / the mock device before ever touching hardware.
+4. Classify it `READ_ONLY` only after semantic risk review.
+5. Set `enabled=True` with the evidence references filled in.
+6. Test it against a fixture / the mock device before ever touching hardware.
+
+The captured `0x0B` request currently has byte-level HIGH confidence but is
+classified `ACTIVE_QUERY` and remains disabled. `client/transaction.py` is a
+transport-injected state machine; its replay test is the only enabled path in
+the test suite. The project has not sent a live vendor request.
 
 ## Implementation notes
 - Enumeration uses `SetupDiGetClassDevs` on the vendor interface GUIDs, with the

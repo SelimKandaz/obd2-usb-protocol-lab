@@ -117,11 +117,16 @@ and enabled in `src/vod700/client/policy.py`.
 See [`docs/PROTOCOL_STATUS.md`](docs/PROTOCOL_STATUS.md) and
 [`reports/VOD700_REVERSE_ENGINEERING_STATUS.md`](reports/VOD700_REVERSE_ENGINEERING_STATUS.md).
 
-**Current blocker**
+The first updater transaction is reconstructed in
+`reports/VOD700_PROTOCOL_MILESTONE_6.md`. The private canonical capture proves
+the `0x0B`/`0x8B` and `0x06`/`0x86` interrupt exchanges, additive checksums,
+and preliminary bulk-IN reads. A separate private update-stage capture proves
+the dangerous `0x02` bulk-OUT path; it is not implemented for dispatch.
 
-The official updater and USBPcap are present, and static analysis is complete.
-The first passive capture awaits owner approval of the Windows UAC prompt needed
-to open the USBPcap control device. No active vendor request is enabled.
+The independent client now has evidence-backed offline parsers/builders and a
+policy-gated, transport-injected storage-query state machine. No live vendor
+request is enabled or sent. The only remaining hardware step is explicit owner
+approval after replay/mock review of the proposed read-only query.
 
 ## Legal & ethical
 

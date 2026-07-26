@@ -48,6 +48,10 @@ pattern classification. Targeted tests cover captured bytes, fields,
 checksums, invalid frames, and bulk observations. Live client policy remains
 blocked pending explicit owner approval.
 
+`vod700.client.transaction` adds a transport-injected storage-query state
+machine. Its replay test is green; the shipped policy refuses before any live
+transport call.
+
 The separate update-stage trace is documented in
 `reports/UPDATE_STAGE_CAPTURE_ANALYSIS.md`; it contains one official-updater
 bulk OUT and is explicitly excluded from read-only command evidence.

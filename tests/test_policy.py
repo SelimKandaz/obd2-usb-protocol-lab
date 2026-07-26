@@ -18,6 +18,13 @@ def test_shipped_active_commands_are_all_gated():
         assert_dispatchable("version")
 
 
+def test_evidenced_query_is_still_gated():
+    with pytest.raises(PolicyError):
+        assert_dispatchable("storage_query")
+    with pytest.raises(PolicyError):
+        assert_dispatchable("block_read")
+
+
 def test_unknown_command_raises():
     with pytest.raises(PolicyError):
         assert_dispatchable("does-not-exist")

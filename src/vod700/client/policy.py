@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from ..confidence import Confidence
+from ..protocol.verified import build_storage_query
 
 
 class SafetyClass(StrEnum):
@@ -82,6 +83,32 @@ class CommandSpec:
 # Registry — every entry disabled until evidence exists. These names mirror the
 # CLI verbs (`identify`, `version`) so the gate produces a clear refusal.
 REGISTRY: dict[str, CommandSpec] = {
+    "storage_query": CommandSpec(
+        name="storage_query",
+        description="Captured updater capacity/storage query (not yet approved for live dispatch).",
+        endpoint=0x01,
+        request=build_storage_query(),
+        expected_response="0x81 interrupt IN: 16-byte 0x8B response with SUM8",
+        source_captures=("updater_first_vendor.pcapng#0-3",),
+        source_code=("Update.exe+0x0000E670; Update.exe+0x00010010",),
+        safety=SafetyClass.ACTIVE_QUERY,
+        confidence=Confidence.HIGH,
+        timeout_ms=1000,
+        max_response=16,
+        enabled=False,
+        notes="Bytes are verified; semantics and state-change risk remain under review.",
+    ),
+    "block_read": CommandSpec(
+        name="block_read",
+        description="Captured updater block-read command; never dispatch automatically.",
+        endpoint=0x01,
+        source_captures=("updater_first_vendor.pcapng#4-21",),
+        source_code=("Update.exe+0x0000DB30; Update.exe+0x00010010",),
+        safety=SafetyClass.UNSAFE,
+        confidence=Confidence.HIGH,
+        enabled=False,
+        notes="Followed by bulk-IN and adjacent update-state behavior; no live dispatch.",
+    ),
     "identify": CommandSpec(
         name="identify",
         description="Request device identity / model string (hypothetical).",

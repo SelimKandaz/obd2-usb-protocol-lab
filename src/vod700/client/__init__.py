@@ -8,6 +8,7 @@ from .policy import (
     assert_dispatchable,
     list_commands,
 )
+from .transaction import StorageQueryResult, TransactionError, run_storage_query
 
 __all__ = [
     "CommandSpec",
@@ -15,4 +16,7 @@ __all__ = [
     "SafetyClass",
     "assert_dispatchable",
     "list_commands",
+    "StorageQueryResult",
+    "TransactionError",
+    "run_storage_query",
 ]
