@@ -3,18 +3,17 @@
     Passive, owner-signaled capture around the first official Update action.
 .DESCRIPTION
     Captures the complete selected USBPcap root hub with Update.exe initially
-    closed. The owner opens the official updater, then creates the click signal
-    only after the controller prints READY. The script never clicks the UI and
+    closed. The owner opens the official updater and clicks Update once only
+    after the controller prints READY. The controller then observes a bounded
+    post-click window and contains the updater. It never clicks the UI and
     never sends a project-generated USB request.
 #>
 [CmdletBinding()]
 param(
     [string]$UpdaterPath = '',
     [string]$OutPath = '',
-    [string]$SignalPath = '',
     [int]$UpdaterWaitSeconds = 90,
-    [int]$ClickWaitSeconds = 30,
-    [int]$PostClickSeconds = 2
+    [int]$PostReadySeconds = 18
 )
 
 $ErrorActionPreference = 'Stop'
@@ -96,7 +95,6 @@ public sealed class FirstVendorPipeSink : IDisposable
 
 if (-not $UpdaterPath) { $UpdaterPath = Join-Path $repo 'private_samples\updater\Update.exe' }
 if (-not $OutPath) { $OutPath = Join-Path $repo 'private_samples\captures\updater_first_vendor.pcap' }
-if (-not $SignalPath) { $SignalPath = Join-Path $repo 'private_samples\captures\first_vendor_click.signal' }
 if (-not (Test-Path $usbpcapCmd)) { Fail "USBPcapCMD not found: $usbpcapCmd" }
 if (-not (Test-Path $UpdaterPath)) { Fail "Updater not found: $UpdaterPath" }
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -124,7 +122,6 @@ $usbAddress = @($targets)[0].Address
 
 $outDir = Split-Path -Parent $OutPath
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
-Remove-Item -LiteralPath $SignalPath -Force -ErrorAction SilentlyContinue
 $cap = $null
 $sink = $null
 try {
@@ -141,7 +138,6 @@ try {
     if ($cap.HasExited) { Fail 'USBPcapCMD exited before updater launch.' }
     Write-Host ("CAPTURE_ACTIVE " + [char]0x2014 + " OPEN THE OFFICIAL UPDATER AND STOP BEFORE CLICKING UPDATE")
     Write-Host "USBPcap interface=$interface; dynamically selected address=$usbAddress; complete root hub; injection=disabled"
-    Write-Host "click signal path=$SignalPath"
 
     $deadline = (Get-Date).AddSeconds($UpdaterWaitSeconds)
     $updater = $null
@@ -153,16 +149,11 @@ try {
     if (-not $updater) { Fail 'Update.exe was not detected before timeout.' }
     Start-Sleep -Seconds 3
     Write-Host ("READY " + [char]0x2014 + " CLICK UPDATE ONCE NOW")
-
-    $clickDeadline = (Get-Date).AddSeconds($ClickWaitSeconds)
-    while ((Get-Date) -lt $clickDeadline -and -not (Test-Path $SignalPath)) {
-        Start-Sleep -Milliseconds 100
-    }
-    if (-not (Test-Path $SignalPath)) { Fail 'Owner click signal was not received; no button action was performed.' }
-    Remove-Item -LiteralPath $SignalPath -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds $PostClickSeconds
-    Write-Host ("CLICK_SIGNAL_RECEIVED " + [char]0x2014 + " containing updater and stopping capture.")
-    try { Stop-Process -Id $updater.ProcessId -Force -ErrorAction SilentlyContinue } catch { }
+    Write-Host ("POST_READY_WINDOW " + [char]0x2014 + " observing for $PostReadySeconds seconds; do not click anything else.")
+    Start-Sleep -Seconds $PostReadySeconds
+    Write-Host ("POST_READY_COMPLETE " + [char]0x2014 + " containing updater and stopping capture.")
+    try { $updater.CloseMainWindow() | Out-Null; Start-Sleep -Seconds 3 } catch { }
+    if (-not $updater.HasExited) { try { Stop-Process -Id $updater.ProcessId -Force -ErrorAction SilentlyContinue } catch { } }
     $sink.Dispose()
     $sink = $null
     try { Wait-Process -Id $cap.Id -Timeout 5 -ErrorAction SilentlyContinue } catch { }

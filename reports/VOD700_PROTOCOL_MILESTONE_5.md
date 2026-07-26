@@ -14,8 +14,8 @@ reconnect baseline was not repeated or modified.
 - Confirmed the VOD700 is present as a WINUSB device (`VID_0483&PID_5265`).
 - Added `scripts/capture_updater_first_vendor.ps1`, which dynamically selects
   the unique USBPcap WinUSB target, captures the complete root hub with
-  injection disabled, waits for the official updater, requires an explicit
-  owner click signal, then contains the updater.
+  injection disabled, waits for the official updater, requires one owner click,
+  observes an 18-second bounded post-click window, then contains the updater.
 - Confirmed the script parses successfully in Windows PowerShell.
 - Reconstructed dialog resource 102 statically: Update control ID 1,
   Exit control ID 2, progress ID 1000, status ID 1001, Feedback ID 1005.
@@ -28,6 +28,16 @@ timestamped transaction exists in this milestone. The static `0x0B` candidate
 must not be treated as a captured request and remains disabled in client
 policy. No `0x0B` or `0x06` appearance can be claimed for the absent live
 capture.
+
+## Capture attempt
+
+The first elevated attempt reached `CAPTURE_ACTIVE` and `READY`, but the
+controller then timed out waiting for a separate click-signal file. The owner
+interface displayed `Open File C:\\USBPcapCaptures\\bin\\McuCode.bin Fail!`.
+The resulting PCAP was header-only (24 bytes), so it is not a canonical live
+capture and contains no protocol evidence. The controller was changed to
+require no signal file and to contain the updater automatically after the
+bounded post-click window.
 
 ## Safety boundary
 
