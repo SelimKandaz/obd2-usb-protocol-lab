@@ -1,31 +1,33 @@
 # Differential Capture Analysis
 
-Date: 2026-07-24
+Date: 2026-07-25
 
-## Baseline reconnect capture: VERIFIED LIVE
+## Baseline versus updater action
 
-The supplied complete-root-hub capture contains two standard enumeration
-sequences:
-
-| Phase | Relative time | USB address | Records | Result |
-|---|---:|---:|---:|---|
-| before disconnect | 0.000000-0.016003 s | 5 | 10 | live endpoint-0 enumeration |
-| after reconnect | 81.121916-81.137621 s | 6 | 10 | live endpoint-0 enumeration |
-
-The 81.120376-second gap and address transition 5 -> 6 are consistent with the
-device being disconnected and reconnected. The records have nonzero IRP IDs and
-are therefore distinct from the six zero-IRP synthetic records in the earlier
-idle capture. SET_ADDRESS is not present in the recorded window.
-
-## Endpoint differential
-
-| Channel | Baseline reconnect | Updater-idle capture | Interpretation |
+| Channel | Reconnect baseline | First updater capture | Conclusion |
 |---|---:|---:|---|
-| endpoint 0 control | 20 live | 6 synthetic | enumeration only; captures differ in source |
-| `0x01` interrupt OUT | 0 | 0 | no vendor request |
-| `0x81` interrupt IN | 0 | 0 | no vendor response |
-| `0x02` bulk OUT | 0 | 0 | no bulk write |
-| `0x82` bulk IN | 0 | 0 | no bulk read |
+| endpoint 0 control | 20 live | 0 | known enumeration excluded |
+| `0x01` interrupt OUT | 0 | 8 records / 4 frames | updater command channel |
+| `0x81` interrupt IN | 0 | 6 records / 3 responses | updater response channel |
+| `0x02` bulk OUT | 0 | 0 | no firmware write observed |
+| `0x82` bulk IN | 0 | 8 records / 4 data pairs | preliminary read path |
 
-No updater-open reconnect capture has been performed. Therefore no claim can be
-made about whether `Update.exe` opens WinUSB after reconnect.
+The updater capture is address 6 only and contains no reconnect enumeration.
+This is a clean differential against the canonical address-transition baseline.
+
+## Transaction progression
+
+The first request is `0x0B`, followed by response `0x8B` carrying the
+little-endian value `0x02000000`. It is followed by `0x06` requests at
+`0x01FB0000`, `0x01FB1000`, and `0x01FB2000`. Each completed `0x06` response is
+`0x86` with value zero, followed by a 4,096-byte and an 8-byte bulk-IN read.
+
+The third `0x06` completion is cancelled by containment; this is an expected
+capture boundary, not a device NACK.
+
+## Static/dynamic result
+
+Static function `0x0040E670` and helper `0x00410010` independently predict the
+live `0x0B` frame, 16-byte interrupt exchange, `0x06` address layout, and
+bulk-IN follow-on. This raises the byte-level command/framing confidence to
+HIGH. The semantic meaning of the 0x0B value and bulk payload remains MEDIUM.

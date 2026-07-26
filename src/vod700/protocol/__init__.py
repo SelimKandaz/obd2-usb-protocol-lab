@@ -21,6 +21,17 @@ from .models import (
     TransferType,
     UsbTransfer,
 )
+from .verified import (
+    BLOCK_READ,
+    STORAGE_QUERY,
+    VerifiedRequest,
+    VerifiedResponse,
+    build_block_read,
+    build_storage_query,
+    classify_bulk_in,
+    parse_request,
+    parse_response,
+)
 
 __all__ = [
     "Direction",
@@ -36,4 +47,13 @@ __all__ = [
     "AckResponse",
     "ErrorResponse",
     "DeviceInfoResponse",
+    "STORAGE_QUERY",
+    "BLOCK_READ",
+    "VerifiedRequest",
+    "VerifiedResponse",
+    "build_storage_query",
+    "build_block_read",
+    "parse_request",
+    "parse_response",
+    "classify_bulk_in",
 ]

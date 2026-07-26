@@ -1,17 +1,21 @@
-# Next Passive Capture
+# Next Captures
 
-Do not repeat `baseline_reconnect.pcapng`. The remaining capture is the first
-official updater transaction, using `scripts/capture_updater_first_vendor.ps1`:
+The first updater transaction is now canonicalized at
+`private_samples/captures/updater_first_vendor.pcapng`; do not repeat it.
 
-1. Run the controller elevated with the VOD700 connected and Update.exe closed.
-2. When it prints `CAPTURE_ACTIVE — OPEN THE OFFICIAL UPDATER AND STOP BEFORE CLICKING UPDATE`, open the exact official updater with no arguments.
-3. Wait for `READY — CLICK UPDATE ONCE NOW`.
-4. Click Update exactly once.
-5. The controller observes until the first USB record (maximum 15 seconds),
-   then contains Update.exe and stops USBPcap automatically.
+The next evidence target is the boundary after the observed preliminary
+`0x06`/bulk-IN reads. Any future capture must be separately approved and must
+stop before `0x02` bulk OUT or firmware transfer. The existing controller now
+contains the updater on the first USB record, so it is suitable only for a
+newly scoped scenario after changing its capture label and output path.
 
-The controller never clicks the UI, injects descriptors, sends a vendor
-request, opens firmware/erase material, or continues into an update workflow.
-Compare the resulting trace against `baseline_reconnect.pcapng`, excluding
-the known endpoint-0 enumeration records before classifying the first vendor
-transfer.
+Before any live command execution:
+
+1. Validate the new parser/builders against the private replay fixture.
+2. Review the exact request, response, timeout, maximum length, and risk.
+3. Obtain explicit owner approval for one command.
+4. Exercise the command against the mock/replay device first.
+
+No live `0x0B` or `0x06` request is authorized by this document. No firmware,
+erase, bulk OUT, driver replacement, vehicle connection, or replay of the
+captured request is authorized.

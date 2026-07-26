@@ -2,7 +2,7 @@
 
 Date: 2026-07-25
 
-## Status: STATIC EVIDENCE IMPROVED; LIVE HANDLER/CAPTURE PENDING
+## Status: FIRST LIVE TRANSACTION VERIFIED; EXACT MFC MESSAGE-MAP SYMBOL STILL UNKNOWN
 
 No updater UI was clicked and no project-generated USB request was sent. The
 following findings are read-only analysis of the official `Update.exe`.
@@ -42,13 +42,21 @@ interrupt IN). For command `0x0B`, the response discriminator is expected to
 be byte 2 `0x8B`; the caller decodes response bytes 3–6 as a little-endian
 value. These facts remain uncorrelated with a live Update-button capture.
 
+## Live correlation
+
+The canonical first-updater capture independently observed the exact static
+`0x0B` frame on `0x01` and its `0x8B` response on `0x81`, followed by the
+static `0x06`/bulk-IN path. This proves that the captured worker path is
+reachable from the owner-approved Update action. The exact symbolic MFC
+message-map entry remains unresolved, but it is no longer necessary to infer
+the first transfer bytes.
+
 ## Remaining proof
 
-The exact MFC message-map entry, call chain from dialog control ID 1, and the
-first live submit/completion pair remain UNKNOWN. The bounded passive capture
-controller is `scripts/capture_updater_first_vendor.ps1`; it waits for the
-owner to open the official updater, then waits for an explicit owner click
-signal, and contains the updater immediately afterward.
+The exact MFC message-map entry and complete call chain from dialog control ID
+1 remain UNKNOWN. The first live submit/completion pair is verified in
+`reports/HANDSHAKE_ANALYSIS.md`; the bounded passive capture controller is
+`scripts/capture_updater_first_vendor.ps1`.
 
 Until a live capture independently matches the static candidate (or another
 static/runtime pair reaches HIGH confidence), no read-only command is enabled

@@ -4,8 +4,8 @@ Date: 2026-07-25
 
 ## Status
 
-Prepared, but live first-transaction capture is still pending elevated
-USBPcap execution and the single owner-approved Update click. The canonical
+This preparation milestone is superseded by `VOD700_PROTOCOL_MILESTONE_6.md`,
+which contains the successful live first-transaction capture. The canonical
 reconnect baseline was not repeated or modified.
 
 ## Completed safely
@@ -22,13 +22,11 @@ reconnect baseline was not repeated or modified.
   Exit control ID 2, progress ID 1000, status ID 1001, Feedback ID 1005.
 - Recorded the static-only candidate `55 AA 0B 00 00 00 00 00 00 00 00 00 00 00 00 0A`.
 
-## Not yet evidenced
+## Historical boundary
 
-No live vendor-specific USB transfer, submit/completion pair, response, or
-timestamped transaction exists in this milestone. The static `0x0B` candidate
-must not be treated as a captured request and remains disabled in client
-policy. No `0x0B` or `0x06` appearance can be claimed for the absent live
-capture.
+At the time of this preparation milestone no live vendor-specific USB transfer
+had been captured. The later canonical evidence and exact hashes are recorded
+in `reports/HANDSHAKE_ANALYSIS.md`; client policy remains disabled.
 
 ## Capture attempt
 
