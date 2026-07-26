@@ -3,7 +3,8 @@
 Read-only by construction. The device-touching commands (`devices`,
 `descriptors`, `endpoints`) issue only standard USB descriptor reads. The
 `identify`, `version`, and `listen` verbs are gated and report *why* they are
-refused rather than sending anything.
+refused rather than sending anything. The verified `storage-query` transaction
+is opt-in and requires an explicit ``--approve-live`` flag.
 """
 from __future__ import annotations
 
@@ -108,6 +109,58 @@ def _cmd_gated(name: str) -> int:
     return 0  # pragma: no cover - unreachable until a command is enabled
 
 
+def _cmd_storage_query(args: argparse.Namespace) -> int:
+    """Run the verified 0x0B query only with an explicit CLI approval flag."""
+    if not args.approve_live:
+        print(
+            "REFUSED — `storage-query` requires --approve-live; "
+            "the default path sends no vendor bytes.",
+            file=sys.stderr,
+        )
+        return 3
+
+    from .client import policy, transaction, winusb
+    from .client.readonly_client import list_device_paths
+
+    if not winusb.WINUSB_AVAILABLE:
+        print(f"WinUSB unavailable on this platform: {winusb._IMPORT_ERROR}", file=sys.stderr)
+        return 2
+
+    spec = policy.REGISTRY["storage_query"]
+    previous_enabled = spec.enabled
+    spec.enabled = True
+    try:
+        paths = list_device_paths()
+        if not paths:
+            print("No VOD700 WinUSB interface paths found.", file=sys.stderr)
+            return 1
+        with winusb.WinUsbDevice(paths[0]) as device:
+            result = transaction.run_storage_query(transaction.WinUsbPipeTransport(device))
+    except (winusb.WinUsbError, transaction.TransactionError, policy.PolicyError) as exc:
+        print(f"storage-query failed: {exc}", file=sys.stderr)
+        return 2
+    finally:
+        spec.enabled = previous_enabled
+
+    payload = {
+        "endpoint_out": "0x01",
+        "endpoint_in": "0x81",
+        "request_hex": result.request.hex(),
+        "response_hex": result.response.raw.hex(),
+        "response_command": f"0x{result.response.response_command:02X}",
+        "value_u32_le": result.response.value_u32_le,
+        "write_length": result.write_length,
+        "elapsed_s": result.elapsed_s,
+    }
+    if args.json:
+        _dump_json(payload)
+    else:
+        print("storage-query OK (verified 0x0B/0x8B exchange)")
+        for key, value in payload.items():
+            print(f"  {key}: {value}")
+    return 0
+
+
 def _cmd_policy(args: argparse.Namespace) -> int:
     from .client.policy import list_commands
 
@@ -188,6 +241,12 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("identify", help="(gated) request device identity")
     sub.add_parser("version", help="(gated) request firmware/app version")
     sub.add_parser("listen", help="(gated) read the interrupt IN endpoint")
+    sq = sub.add_parser("storage-query", help="verified 0x0B query (requires --approve-live)")
+    sq.add_argument(
+        "--approve-live",
+        action="store_true",
+        help="explicitly authorize one verified read-only vendor transaction",
+    )
     sub.add_parser("policy", help="show the command safety policy")
 
     cap = sub.add_parser("capture", help="analyze a pcapng/pcap USB capture")
@@ -218,6 +277,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_probe(args, "endpoints")
     if args.command in ("identify", "version", "listen"):
         return _cmd_gated(args.command)
+    if args.command == "storage-query":
+        return _cmd_storage_query(args)
     if args.command == "policy":
         return _cmd_policy(args)
     if args.command == "capture":

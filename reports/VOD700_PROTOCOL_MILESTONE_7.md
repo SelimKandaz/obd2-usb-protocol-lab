@@ -4,10 +4,11 @@ Date: 2026-07-25
 
 ## Result
 
-One owner-approved live transmission of the exact passive/static `0x0B`
-storage query was performed through the policy-gated WinUSB adapter. The
-request was sent once and the client stopped on the first unexpected response.
-No retry or second vendor request followed.
+The first owner-approved diagnostic run returned an unclassified `0x05`
+response. After the diagnostic path was corrected to retain raw response bytes,
+one additional owner-authorized run of the exact passive/static `0x0B` query
+completed successfully with the expected `0x8B` response. No retry loop,
+update-stage command, bulk write, or firmware operation was used.
 
 ## Live request
 
@@ -21,11 +22,17 @@ updater capture and static `Update.exe` analysis.
 
 ## Live result
 
-The device returned a 16-byte `0x81` Interrupt IN frame whose command byte was
-`0x05`. The previous transaction diagnostic did not retain the raw frame after
-the parser rejected that command, so the response payload cannot be claimed
-byte-for-byte. The result is therefore an **UNKNOWN state/response**, not a
-verified NACK and not a successful storage query.
+The successful physical exchange was:
+
+```text
+OUT 0x01  55 AA 0B 00 00 00 00 00 00 00 00 00 00 00 00 0A
+IN  0x81  AA 55 8B 00 00 00 02 00 00 00 00 00 00 00 00 8C
+```
+
+The response command, checksum, exact length, and little-endian value
+`0x02000000` all match the canonical passive capture. The first `0x05`
+observation remains documented as an unresolved state-dependent response, but
+it is not the result of the final validated run.
 
 ## Containment and post-check
 
@@ -39,9 +46,10 @@ verified NACK and not a successful storage query.
 ## Implementation change
 
 `vod700.client.transaction` now includes the raw response hex in parse and
-unexpected-command errors. This is diagnostic-only and does not enable a live
-command. The shipped policy remains blocked, and the exact next live request
-requires a new explicit owner approval.
+unexpected-command errors. The `storage-query` policy entry is now classified
+`READ_ONLY`, but remains disabled by default. The CLI exposes it only through
+the explicit `vod700 storage-query --approve-live` path, which restores the
+disabled state after one transaction.
 
 ## Validation
 

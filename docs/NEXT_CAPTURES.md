@@ -16,9 +16,11 @@ Before any live command execution:
 3. Obtain explicit owner approval for one command.
 4. Exercise the command against the mock/replay device first.
 
-No live `0x0B` or `0x06` request is authorized by this document. No firmware,
-erase, bulk OUT, driver replacement, vehicle connection, or replay of the
-captured request is authorized.
+The `0x0B`/`0x8B` query has now been validated once on the physical device and
+must not be repeated as a baseline. `0x06`, bulk OUT, firmware, erase, driver
+replacement, vehicle connection, and replay of update-stage traffic remain
+unauthorized. Any future capture must target a distinct unknown command or
+state and requires a separate explicit approval.
 
 For a future bounded passive capture, the controller launches `Update.exe`
 itself with `private_samples/updater` as the working directory. Do not launch

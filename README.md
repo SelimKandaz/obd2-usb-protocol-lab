@@ -112,6 +112,15 @@ Active/query commands (`listen`, `identify`, `version`) are **gated**: they
 refuse to run until the underlying request is verified from capture evidence
 and enabled in `src/vod700/client/policy.py`.
 
+The verified capacity query is available only as an explicit opt-in:
+
+```bash
+vod700 storage-query --approve-live
+```
+
+It sends one 16-byte `0x0B` request and validates the 16-byte `0x8B` response;
+the default command set sends no vendor-protocol bytes.
+
 ## Status
 
 See [`docs/PROTOCOL_STATUS.md`](docs/PROTOCOL_STATUS.md) and
@@ -123,10 +132,11 @@ the `0x0B`/`0x8B` and `0x06`/`0x86` interrupt exchanges, additive checksums,
 and preliminary bulk-IN reads. A separate private update-stage capture proves
 the dangerous `0x02` bulk-OUT path; it is not implemented for dispatch.
 
-The independent client now has evidence-backed offline parsers/builders and a
-policy-gated, transport-injected storage-query state machine. No live vendor
-request is enabled or sent. The only remaining hardware step is explicit owner
-approval after replay/mock review of the proposed read-only query.
+The independent client now has evidence-backed offline parsers/builders, a
+policy-gated transport state machine, and one physical validation of the
+`0x0B`/`0x8B` exchange. The dangerous `0x06`/bulk paths remain unimplemented
+for dispatch. `storage-query` is disabled by default and requires explicit
+approval on every invocation.
 
 ## Legal & ethical
 

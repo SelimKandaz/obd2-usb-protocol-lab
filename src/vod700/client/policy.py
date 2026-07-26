@@ -85,18 +85,18 @@ class CommandSpec:
 REGISTRY: dict[str, CommandSpec] = {
     "storage_query": CommandSpec(
         name="storage_query",
-        description="Captured updater capacity/storage query (not yet approved for live dispatch).",
+        description="Verified capacity/storage query; live dispatch is explicit opt-in.",
         endpoint=0x01,
         request=build_storage_query(),
         expected_response="0x81 interrupt IN: 16-byte 0x8B response with SUM8",
         source_captures=("updater_first_vendor.pcapng#0-3",),
         source_code=("Update.exe+0x0000E670; Update.exe+0x00010010",),
-        safety=SafetyClass.ACTIVE_QUERY,
+        safety=SafetyClass.READ_ONLY,
         confidence=Confidence.HIGH,
         timeout_ms=1000,
         max_response=16,
         enabled=False,
-        notes="Bytes are verified; semantics and state-change risk remain under review.",
+        notes="Verified by updater capture, static analysis, and one physical exchange; remains disabled by default.",
     ),
     "block_read": CommandSpec(
         name="block_read",

@@ -14,6 +14,12 @@ def test_gated_identify_is_refused(capsys):
     assert "REFUSED" in capsys.readouterr().err
 
 
+def test_storage_query_requires_explicit_live_approval(capsys):
+    assert main(["storage-query"]) == 3
+    captured = capsys.readouterr()
+    assert "--approve-live" in captured.err
+
+
 def test_capture_summary(tmp_path, capsys):
     blob = build_usbpcap_pcapng(
         [

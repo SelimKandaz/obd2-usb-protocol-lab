@@ -11,10 +11,10 @@ policy gate
     -> expose little-endian value 0x02000000
 ```
 
-The transport is injected. `ReplayDevice` is used for the automated path; the
-shipped policy refuses before any transport call. The request remains
-`ACTIVE_QUERY`, not `READ_ONLY`, because its meaning and state-change risk are
-not proven harmless and the official updater proceeds into update-state logic.
+The transport is injected. `ReplayDevice` is used for the automated path. The
+request/response is now verified by a physical exchange, so the policy class is
+`READ_ONLY`; it remains disabled by default and is enabled only for the
+explicit `vod700 storage-query --approve-live` invocation.
 
 The `0x06` block-read and `0x02` bulk-write paths are deliberately not exposed
 as active state-machine operations. The latter is classified dangerous and has
@@ -22,4 +22,5 @@ no builder. This module does not send bytes to a physical device.
 
 `WinUsbPipeTransport` and the low-level overlapped WinUSB pipe methods are
 implemented, but policy remains the only dispatch gate. Descriptor probing does
-not call them, and no live vendor request has been authorized in this project.
+not call them. The opt-in command restores the disabled policy after one
+transaction and exposes the exact request/response bytes for auditability.
