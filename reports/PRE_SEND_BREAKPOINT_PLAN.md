@@ -35,6 +35,8 @@ buffer length, transferred-length pointer, and overlapped pointer. Do not step
 over the call. Dump the buffer and length, record the selected pipe, then
 terminate the suspended process. Do not detach/resume it.
 
-Coverage is not yet proof of a safe request: the exact MFC handler and all
-custom wrapper callers still need static call-graph reconstruction. This plan
-must not be executed without explicit owner approval.
+The exact MFC handlers are now recovered for `Update` (control ID 1) and
+`Feedback` (control ID 1005), but that coverage is still not proof that a
+request is safe. Custom wrapper callers, the Review & Print UI edge, and all
+dangerous stage semantics remain incomplete. This plan must not be executed
+without explicit owner approval.

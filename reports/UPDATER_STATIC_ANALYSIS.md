@@ -96,8 +96,10 @@ Observed static templates:
 |---:|---|---|---|
 | `0x0B` | response bytes 3–6 are parsed little-endian as a size/capacity used to choose address ranges | `55 AA 0B`, remaining data zero, additive checksum | HIGH for layout, MEDIUM for meaning |
 | `0x06` | address in bytes 3–6 little-endian; byte 7 zero; byte 8 `0x10`; followed by bulk-IN reads | `55 AA 06 <addrLE32> 00 10 ... <sum8>` | HIGH for layout, MEDIUM for read-block meaning |
-| `0x07` | used in the non-`0x5265` device-family path before file selection/update logic | partial template only | MEDIUM for presence, LOW for meaning |
-| `0x03` | only special 20-second timeout established | bytes unknown | LOW |
+| `0x07` | non-`0x5265` gate; response `0x87` payload is compared with ASCII `1.26` before the DM300 route | `55 AA 07`, remaining data zero, SUM8 `0x06` | HIGH for static bytes/path, LOW for meaning |
+| `0x03` | dangerous page-count preparation | captured `55 AA 03 00 47 ... 49` | HIGH for captured layout |
+| `0x04` | static ExtFlashDat preparation stage | `55 AA 04 1D 36`, remaining data zero, SUM8 `0x56` | HIGH static, no wire capture |
+| `0x02` | static final interrupt stage after command `0x04` succeeds | `55 AA 02`, remaining data zero, SUM8 `0x01` | HIGH static, no wire capture |
 | `0x0A` | only special 120-second timeout established | bytes unknown | LOW |
 
 The response helper requires a 16-byte read. Callers compare response byte 2 to
@@ -110,7 +112,7 @@ response checksum, so response-checksum behavior remains UNKNOWN.
 The updater contains explicit firmware paths, an erase container, large bulk-OUT
 frames, and update UI/state strings. Bulk-OUT logic at `0x00411330` constructs
 `0x1008`-byte blocks and appends a 32-bit additive total in big-endian byte
-order before selector-3 writes. These paths are dangerous and must never be
+order before pipe-selector-3 writes. These paths are dangerous and must never be
 invoked independently.
 
 Commands `0x0B` and `0x06` look read-oriented because the first yields a size and
@@ -129,3 +131,57 @@ safe. They remain blocked pending passive capture correlation.
 No command is promoted in the safety policy from static evidence alone. The
 current policy promotes only the `0x0B` storage query as an explicit opt-in
 after the independent physical validation documented in the later milestone.
+
+## 2026-07-26 addendum — bounded workers and exact update frames
+
+The present source of truth for the recovered flow is
+`reports/UPDATER_STATE_MACHINE.md` and
+`knowledge/updater_state_machine.json`. This addendum corrects two earlier
+limitations in this report.
+
+- `0x03` and `0x01` are no longer only timeout candidates. The separate
+  official-updater capture shows exact `0x03 -> 0x83` and `0x01 -> 0x81`
+  frames, while `Update.exe+0x00411330` supplies the independent construction
+  path. Both are **dangerous update states**, not client commands.
+- `0x06` is not merely “update-adjacent.” `+0x0040DB30` is a bounded Feedback
+  export worker: `capacity - 0x50000`, 32 pages, `0x1008` bulk-IN reads, and a
+  host `Feedback.bin` output. It remains blocked because this does not prove
+  arbitrary-address non-mutating semantics.
+- A second worker at `+0x0040EFB0` starts at `capacity - 0x30000`, reads 30
+  pages through the same shape, tests `AUTOPHIX` in post-transport data, and
+  makes `Review & Print.txt`. It has no live capture yet.
+- The static update worker copies a 4 KiB source page directly into the
+  observed `55AA55AA + page + SUM32BE` frame. Offline matching proves the
+  captured page equals DM100 `McuCode.bin` offset zero; see
+  `reports/FIRMWARE_CONTAINER_ANALYSIS.md`.
+- All retained captured 16-byte responses satisfy SUM8. The updater helper's
+  own lack of a static response-checksum check is a host-validation detail, not
+  evidence against the observed wire checksum.
+- Structural MFC command-map recovery resolves `Update` control ID 1 at
+  `+0x008CBA68 -> 0x0040CFB0 -> callback 0x00410310` and `Feedback` control
+  ID 1005 at `+0x008CBA80 -> 0x0040D000 -> callback 0x0040DB30`. The two
+  handlers use the same worker-launcher candidate at `0x00439380`. Thus the
+  captured `0x0B`/`0x06` sequence belongs to the Feedback worker; it is not
+  static proof that the Update button itself performs that query.
+- The Update worker's success path is statically ordered: VOD700 DM100 command
+  `0x03` at `+0x00410C25`, then `ExtFlashDat.bin` command `0x04` at
+  `+0x00410F10`, then final interrupt command `0x02` at `+0x00411002`. The
+  latter two wire transactions are not captured and remain dangerous/UNKNOWN.
+- The refreshed import inventory contains no imported CryptoAPI/BCrypt/key or
+  standard compression API. This does not rule out custom, statically linked,
+  or device-side transformation.
+- The non-VOD branch at `+0x00410566` constructs a zero-payload `0x07` frame,
+  expects `0x87`, and compares response bytes after the header with ASCII
+  `1.26`. A match selects `DM300\McuCode.bin`; a non-match tries
+  `DM300\Erase.bin` and then `bin\Erase.bin` before a dangerous worker call.
+  This is a separate family path, has no VOD700 capture, and is not a version
+  command candidate for the active client.
+
+The refreshed reproducible static report is intentionally private because it
+contains vendor strings:
+
+```powershell
+.\.venv\Scripts\python.exe tools\analyze_updater.py `
+  --input private_samples\updater\Update.exe `
+  --out private_samples\analysis\updater_static_v4.json
+```

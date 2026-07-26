@@ -4,11 +4,15 @@ from vod700.protocol.verified import (
     build_block_read,
     build_storage_query,
     classify_bulk_in,
+    inspect_bulk_read,
     inspect_bulk_write,
     parse_observed_request,
     parse_observed_response,
     parse_request,
     parse_response,
+    parse_update_block,
+    parse_update_prepare,
+    reassemble_bulk_read_fragments,
 )
 
 
@@ -65,3 +69,26 @@ def test_bulk_write_observation_validates_captured_sum_without_builder():
     assert observed.prefix == b"\x55\xAA\x55\xAA"
     assert observed.body_length == len(body)
     assert observed.checksum_valid is True
+
+
+def test_captured_bulk_read_reassembles_and_validates_sum32():
+    first = bytes.fromhex("aa55aa55") + b"\xff" * 4092
+    second = bytes.fromhex("ffffffff000ff1fe")
+    raw = reassemble_bulk_read_fragments([first, second])
+    observed = inspect_bulk_read(raw)
+    assert observed.prefix == bytes.fromhex("aa55aa55")
+    assert observed.data == b"\xff" * 4096
+    assert observed.trailing_sum32_be == 0x000FF1FE
+    assert observed.checksum_valid is True
+
+
+def test_bulk_read_parser_rejects_noncanonical_shape():
+    with pytest.raises(ValueError, match="4096 bytes then 8 bytes"):
+        reassemble_bulk_read_fragments([b"x"])
+
+
+def test_dangerous_update_frames_are_parser_only_and_capture_exact_fields():
+    prepare = parse_update_prepare(bytes.fromhex("55aa0300470000000000000000000049"))
+    block = parse_update_block(bytes.fromhex("55aa0110000000000000000000000010"))
+    assert prepare.page_count == 71
+    assert block.block_size == 0x1000

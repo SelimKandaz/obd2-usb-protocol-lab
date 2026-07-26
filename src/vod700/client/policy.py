@@ -90,24 +90,30 @@ REGISTRY: dict[str, CommandSpec] = {
         request=build_storage_query(),
         expected_response="0x81 interrupt IN: 16-byte 0x8B response with SUM8",
         source_captures=("updater_first_vendor.pcapng#0-3",),
-        source_code=("Update.exe+0x0000E670; Update.exe+0x00010010",),
+        source_code=("Update.exe+0x0040E670; Update.exe+0x00410010; Update.exe+0x0040EC70",),
         safety=SafetyClass.READ_ONLY,
         confidence=Confidence.HIGH,
         timeout_ms=1000,
         max_response=16,
         enabled=False,
-        notes="Verified by updater capture, static analysis, and one physical exchange; remains disabled by default.",
+        notes=(
+            "Verified by updater capture, static analysis, replay, and one physical exchange; "
+            "remains disabled by default."
+        ),
     ),
     "block_read": CommandSpec(
         name="block_read",
         description="Captured updater block-read command; never dispatch automatically.",
         endpoint=0x01,
         source_captures=("updater_first_vendor.pcapng#4-21",),
-        source_code=("Update.exe+0x0000DB30; Update.exe+0x00010010",),
+        source_code=("Update.exe+0x0040DB30; Update.exe+0x00410010",),
         safety=SafetyClass.UNSAFE,
         confidence=Confidence.HIGH,
         enabled=False,
-        notes="Followed by bulk-IN and adjacent update-state behavior; no live dispatch.",
+        notes=(
+            "Bounded feedback/review storage workers use this shape, but arbitrary-address "
+            "read-only semantics are unproven; no live dispatch."
+        ),
     ),
     "identify": CommandSpec(
         name="identify",

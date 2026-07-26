@@ -13,6 +13,8 @@ construction.
 | `vod700 endpoints`     | `WinUsb_QueryPipe` endpoint map                      | read-only  |
 | `vod700 policy`        | show the command safety policy                        | local only |
 | `vod700 capture ...`   | analyze a pcapng/pcap (offline, no device)           | local only |
+| `vod700 firmware ...`  | inventory/match local opaque artifacts offline         | local only |
+| `vod700 memory ...`    | print bounded, disabled storage plans                  | local only |
 | `vod700 storage-query --approve-live` | one verified `0x0B`/`0x8B` exchange | explicit opt-in |
 | `vod700` transaction module | replay/mock validation of captured bytes | local only |
 
@@ -55,6 +57,14 @@ classified `READ_ONLY` but remains disabled by default. The command-line
 
 The complete byte/evidence/safety record is maintained in
 `knowledge/protocol_knowledge.json`.
+
+## Storage boundary
+
+`vod700 memory feedback-plan` and `vod700 memory review-print-plan` are
+specifications only. They do not import WinUSB transport code and set
+`dispatch_enabled=false`. The new `vod700 capture transactions` command
+correlates USBPcap submit/completion pairs offline so a cancelled IRP cannot be
+mistaken for a device response. See `reports/MEMORY_STORAGE_ANALYSIS.md`.
 
 ## Implementation notes
 - Enumeration uses `SetupDiGetClassDevs` on the vendor interface GUIDs, with the

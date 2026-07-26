@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "updated": "2026-07-26",
+  "address_space": {
+    "reported_capacity": "0x02000000",
+    "units": "byte-addressed only as an updater host-side interpretation; physical backing technology is UNKNOWN",
+    "evidence": [
+      {
+        "classification": "PHYSICALLY_VERIFIED",
+        "source": "reports/LIVE_STORAGE_QUERY_VALIDATION.md",
+        "claim": "One 0x0B exchange returned 0x02000000."
+      },
+      {
+        "classification": "STATIC_ANALYSIS_SUPPORTED",
+        "source": "Update.exe+0x0040E670",
+        "claim": "Updater uses the value in address arithmetic."
+      }
+    ]
+  },
+  "regions": [
+    {
+      "id": "feedback_tail_window",
+      "start": "0x01FB0000",
+      "end_exclusive": "0x01FD0000",
+      "length": "0x00020000",
+      "page_size": "0x1000",
+      "page_count": 32,
+      "host_artifact": "Feedback.bin",
+      "transport_shape": "0x06 -> 0x86 -> 0x82 logical 0x1008 response",
+      "observed_pages": ["0x01FB0000", "0x01FB1000"],
+      "observed_content": "Each completed captured page data area was 4096 bytes of FF with valid SUM32; this is not evidence about uncaptured pages.",
+      "confidence": "HIGH",
+      "safety": "BLOCKED_PENDING_EXPLICIT_LIVE_APPROVAL",
+      "evidence": [
+        {
+          "classification": "CAPTURE_VERIFIED",
+          "source": "updater_first_vendor.pcapng#4-19",
+          "claim": "Two addresses and their valid bulk frames were observed."
+        },
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x0040DB30",
+          "claim": "The updater calculates capacity-0x50000 and loops 32 pages."
+        }
+      ]
+    },
+    {
+      "id": "review_print_tail_window",
+      "start": "0x01FD0000",
+      "end_exclusive": "0x01FEE000",
+      "length": "0x0001E000",
+      "page_size": "0x1000",
+      "page_count": 30,
+      "host_artifact": "Review & Print.txt",
+      "transport_shape": "static-only 0x06 -> 0x86 -> 0x82 logical 0x1008 response",
+      "required_data_prefix": "AUTOPHIX",
+      "observed_pages": [],
+      "observed_content": "No live capture of this region exists.",
+      "confidence": "HIGH",
+      "safety": "BLOCKED_PENDING_EXPLICIT_LIVE_APPROVAL",
+      "evidence": [
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x0040EFB0 through +0x0040F541",
+          "claim": "Updater calculates capacity-0x30000, loops 30 pages, and checks the post-transport data for AUTOPHIX."
+        }
+      ]
+    },
+    {
+      "id": "unmapped_tail",
+      "start": "0x01FEE000",
+      "end_exclusive": "0x02000000",
+      "length": "0x00012000",
+      "purpose": "UNKNOWN",
+      "confidence": "UNKNOWN",
+      "safety": "BLOCKED",
+      "evidence": [
+        {
+          "classification": "INFERRED",
+          "source": "range arithmetic from the two statically bounded workers",
+          "claim": "This interval remains between the known review-print window and reported capacity. No access behavior is known."
+        }
+      ]
+    },
+    {
+      "id": "mcu_internal_flash",
+      "start": "UNKNOWN",
+      "end_exclusive": "UNKNOWN",
+      "purpose": "MCU bootloader/application storage",
+      "confidence": "UNKNOWN",
+      "safety": "BLOCKED",
+      "evidence": [
+        {
+          "classification": "UNKNOWN",
+          "source": "No decoded executable firmware image or board inspection",
+          "claim": "The 0x0B capacity space must not be equated with MCU internal flash."
+        }
+      ]
+    },
+    {
+      "id": "external_flash_or_database",
+      "start": "UNKNOWN",
+      "end_exclusive": "UNKNOWN",
+      "purpose": "possible device-side storage related to ExtFlashDat.bin",
+      "confidence": "UNKNOWN",
+      "safety": "BLOCKED",
+      "evidence": [
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe string %s\\bin\\ExtFlashDat.bin",
+          "claim": "A host artifact with this name exists, but no VOD700 transfer mapping or physical storage mapping is proven."
+        }
+      ]
+    }
+  ],
+  "safe_read_determination": {
+    "live_memory_read_enabled": false,
+    "reason": "The 0x06 request is structurally capture-verified but occurs in updater storage/update-adjacent workers. Only two all-FF tail pages were observed, and no independent proof establishes non-mutating semantics for arbitrary addresses or all device states.",
+    "minimum_missing_evidence": [
+      "A passive capture of the complete, distinct Feedback or Review & Print workflow through normal completion, without entering update states.",
+      "Independent static/dynamic proof that 0x06 cannot select a write/erase mode and that the length selector cannot alter device state.",
+      "Explicit owner approval for a bounded, previously observed address experiment after the two preceding conditions are met."
+    ],
+    "ready_disabled_tools": [
+      "vod700 memory feedback-plan",
+      "vod700 memory review-print-plan",
+      "vod700 capture transactions"
+    ]
+  }
+}

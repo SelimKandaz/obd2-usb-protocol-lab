@@ -34,6 +34,11 @@ private_samples/
 *.enc
 firmware/
 firmware_*/
+# The generic firmware artifact rule above must not hide the Python package
+# that inspects opaque firmware containers.  Firmware *artifacts* still stay
+# ignored everywhere else.
+!src/vod700/firmware/
+!src/vod700/firmware/**
 
 # --- Packet captures (may contain private host / other-device traffic) ----
 *.pcap

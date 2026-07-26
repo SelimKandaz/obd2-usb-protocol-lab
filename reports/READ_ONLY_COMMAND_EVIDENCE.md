@@ -11,7 +11,7 @@ approval path. The default policy remains disabled after every invocation.
 | Candidate | Static evidence | Live passive evidence | Confidence | Safe to transmit |
 |---|---|---|---|---|
 | `0x0B` storage/capacity query | exact builder and response decode | passive capture plus physical `0x8B` response | VERIFIED LIVE | explicit approval required |
-| `0x06` block-read candidate | address/length builder and bulk-IN path | three exact requests, responses, and bulk-IN pairs | HIGH bytes; MEDIUM meaning | approval required |
+| `0x06` bounded tail-read shape | address/length builder and two tail workers | three exact requests; two complete `0x86` + bulk-IN pairs; third request contained/cancelled | HIGH bytes; MEDIUM semantics | no — blocked |
 | `0x07` | non-PID branch only | absent | LOW | no |
 | `identify`/`version` | no distinct request established | absent | UNKNOWN | no |
 
@@ -39,3 +39,12 @@ address-bearing read. A separate update-stage capture shows that the official
 updater can progress to a dangerous `0x02` bulk OUT after preliminary interrupt
 exchanges; that path remains blocked. The client policy keeps `0x0B` disabled by
 default and requires explicit `--approve-live` for each single query.
+
+## 2026-07-26 `0x06` safety correction
+
+The updater's static Feedback and Review & Print workers make `0x06` a strong
+candidate for bounded storage retrieval, but not a safely dispatchable command.
+There is no independent proof that arbitrary addresses, selector values, or
+device states cannot alter state. `block_read` remains `UNSAFE`, disabled, and
+has no active CLI path. The exact missing evidence is recorded in
+`knowledge/memory_map.json`.

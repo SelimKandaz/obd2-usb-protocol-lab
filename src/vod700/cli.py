@@ -188,6 +188,28 @@ def _cmd_capture(args: argparse.Namespace) -> int:
 
     analysis = run_analyze(args.file, bus=args.bus, address=args.address)
 
+    if args.capsub == "transactions":
+        from .capture.transactions import correlate_feedback_reads, correlate_urb_transactions
+
+        transactions, orphans = correlate_urb_transactions(analysis.transfers)
+        feedback_reads = correlate_feedback_reads(analysis.transfers)
+        transaction_payload = {
+            "capture_id": analysis.capture_id,
+            "urb_transactions": [item.to_dict() for item in transactions],
+            "orphan_records": [item.to_dict() for item in orphans],
+            "feedback_read_candidates": [item.to_dict() for item in feedback_reads],
+        }
+        if args.json:
+            _dump_json(transaction_payload)
+        else:
+            print(f"Correlated {len(transactions)} USBPcap submit/completion transaction(s).")
+            print(f"  incomplete: {sum(not item.complete for item in transactions)}")
+            print(f"  orphan records: {len(orphans)}")
+            for item in feedback_reads:
+                state = "valid bulk frame" if item.observation and item.observation.checksum_valid else item.note
+                print(f"  0x06 address=0x{item.address:08X}: {state}")
+        return 0
+
     if args.capsub == "summary" or args.json:
         payload = analysis.to_dict()
         if args.json:
@@ -283,6 +305,63 @@ def _cmd_obd2_decode(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_firmware(args: argparse.Namespace) -> int:
+    """Inspect local artifacts only; never open a device or transform an image."""
+    from .firmware import (
+        compare_files,
+        inspect_file,
+        match_captured_bulk_to_artifact,
+        verify_zip_archive,
+    )
+
+    if args.firmware_subcommand == "inspect":
+        result = inspect_file(args.file, deep=args.deep)
+    elif args.firmware_subcommand == "compare":
+        result = compare_files(args.left, args.right)
+    elif args.firmware_subcommand == "match-bulk":
+        result = match_captured_bulk_to_artifact(
+            args.capture,
+            args.artifact,
+            offset=int(args.offset, 0),
+            bus=args.bus,
+            address=args.address,
+            transfer_index=args.transfer_index,
+        ).to_dict()
+    elif args.firmware_subcommand == "verify-archive":
+        result = verify_zip_archive(args.archive, args.extracted_root)
+    else:  # pragma: no cover - argparse owns the reachable choices
+        return 1
+
+    output = json.dumps(result, indent=2, sort_keys=True)
+    if getattr(args, "out", None):
+        destination = args.out
+        with open(destination, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(output)
+            stream.write("\n")
+        print(f"Wrote offline firmware analysis to {destination}")
+    else:
+        print(output)
+    return 0
+
+
+def _cmd_memory_plan(args: argparse.Namespace) -> int:
+    """Print a capture-derived plan; intentionally does not create USB traffic."""
+    from .memory import feedback_region_plan, review_print_region_plan
+
+    try:
+        capacity = int(args.capacity, 0)
+        plan = (
+            feedback_region_plan(capacity)
+            if args.memory_subcommand == "feedback-plan"
+            else review_print_region_plan(capacity)
+        )
+    except ValueError as exc:
+        print(f"memory plan refused: {exc}", file=sys.stderr)
+        return 2
+    _dump_json(plan.to_dict())
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="vod700", description="VOD700 read-only USB protocol lab")
     p.add_argument("--version", action="version", version=f"vod700 {__version__}")
@@ -318,11 +397,65 @@ def build_parser() -> argparse.ArgumentParser:
     cs.add_argument("--endpoint", default="0x01")
     cs.add_argument("--bus", type=int, default=None)
     cs.add_argument("--address", type=int, default=None)
+    transactions = caps.add_parser("transactions", help="correlate USBPcap submit/completion records offline")
+    transactions.add_argument("file")
+    transactions.add_argument("--bus", type=int, default=None)
+    transactions.add_argument("--address", type=int, default=None)
 
     obd2 = sub.add_parser("obd2", help="decode captured OBD-II CAN/ISO-TP frames offline")
     obd2_sub = obd2.add_subparsers(dest="obd2sub", required=True)
     obd2_decode = obd2_sub.add_parser("decode", help="decode quoted ID#DATA CAN frames")
     obd2_decode.add_argument("frames", nargs="+", help="SocketCAN-style ID#DATA frames")
+
+    firmware = sub.add_parser("firmware", help="offline firmware/container inspection; no device access")
+    firmware_sub = firmware.add_subparsers(dest="firmware_subcommand", required=True)
+    firmware_inspect = firmware_sub.add_parser("inspect", help="inventory one local opaque artifact")
+    firmware_inspect.add_argument("file")
+    firmware_inspect.add_argument(
+        "--deep",
+        action="store_true",
+        help="validate self-contained standard compression candidates without extracting them",
+    )
+    firmware_inspect.add_argument("--out", help="write JSON metadata to a local path")
+    firmware_compare = firmware_sub.add_parser("compare", help="structurally compare two opaque local artifacts")
+    firmware_compare.add_argument("left")
+    firmware_compare.add_argument("right")
+    firmware_compare.add_argument("--out", help="write JSON metadata to a local path")
+    firmware_match = firmware_sub.add_parser(
+        "match-bulk",
+        help="offline-match one captured 0x02 4 KiB bulk slice to a local artifact",
+    )
+    firmware_match.add_argument("capture", help="private capture containing the observed bulk-OUT submit")
+    firmware_match.add_argument("artifact", help="local update artifact to compare; it is not modified")
+    firmware_match.add_argument("--offset", default="0", help="artifact byte offset (default: 0)")
+    firmware_match.add_argument("--bus", type=int, default=None)
+    firmware_match.add_argument("--address", type=int, default=None)
+    firmware_match.add_argument(
+        "--transfer-index",
+        type=int,
+        default=None,
+        help="select a USBPcap transfer index when a capture contains multiple bulk writes",
+    )
+    firmware_match.add_argument("--out", help="write JSON metadata to a local path")
+    firmware_archive = firmware_sub.add_parser(
+        "verify-archive",
+        help="verify a local release ZIP against an already extracted tree; no extraction",
+    )
+    firmware_archive.add_argument("archive", help="local ZIP release archive")
+    firmware_archive.add_argument("extracted_root", help="already extracted local release directory")
+    firmware_archive.add_argument("--out", help="write JSON metadata to a local path")
+
+    memory = sub.add_parser("memory", help="capture-derived offline memory planning only")
+    memory_sub = memory.add_subparsers(dest="memory_subcommand", required=True)
+    memory_feedback = memory_sub.add_parser(
+        "feedback-plan", help="print the blocked, capture-derived feedback-region read plan"
+    )
+    memory_feedback.add_argument("--capacity", default="0x02000000")
+    memory_review = memory_sub.add_parser(
+        "review-print-plan",
+        help="print the static-only, blocked Review & Print region plan",
+    )
+    memory_review.add_argument("--capacity", default="0x02000000")
     return p
 
 
@@ -344,4 +477,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_capture(args)
     if args.command == "obd2" and args.obd2sub == "decode":
         return _cmd_obd2_decode(args)
+    if args.command == "firmware":
+        return _cmd_firmware(args)
+    if args.command == "memory" and args.memory_subcommand in ("feedback-plan", "review-print-plan"):
+        return _cmd_memory_plan(args)
     return 1

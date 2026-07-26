@@ -1,0 +1,447 @@
+{
+  "schema_version": 1,
+  "updated": "2026-07-26",
+  "artifact": {
+    "name": "Update.exe",
+    "sha256": "F705FB6C6276FA52F75DD88269408D5CF061048F5EEB5451212EB1986D862C4D",
+    "architecture": "PE32 x86",
+    "image_base": "0x00400000"
+  },
+  "scope": "Recovered updater worker paths. The MFC WM_COMMAND edges for Update (control 1) and Feedback (control 1005) are statically recovered; the Review & Print UI edge remains UNKNOWN.",
+  "states": [
+    {
+      "id": "startup",
+      "trigger": "Update.exe process startup",
+      "condition": "always",
+      "usb_operation": "none identified at this state",
+      "expected_response": "none",
+      "failure_behavior": "UNKNOWN",
+      "evidence": [
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe PE entry 0x0083E240",
+          "claim": "Native MFC PE32 application startup exists."
+        }
+      ],
+      "confidence": "HIGH",
+      "safety": "NO_DEVICE_OPERATION"
+    },
+    {
+      "id": "mfc_update_button_handler",
+      "trigger": "WM_COMMAND notification code 0 for dialog control 1 (Update)",
+      "condition": "MFC command-map record is dispatched",
+      "usb_operation": "none; host UI handler only",
+      "expected_response": "worker callback 0x00410310 is submitted to the MFC thread-launcher candidate",
+      "failure_behavior": "thread-launch failure behavior UNKNOWN",
+      "evidence": [
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x008CBA68 -> 0x0040CFB0; +0x0040CFDF..+0x0040CFE4",
+          "claim": "The exact WM_COMMAND/control-1 record maps to a handler that pushes callback 0x00410310 and calls the common worker launcher."
+        }
+      ],
+      "confidence": "HIGH",
+      "safety": "HOST_UI_ONLY"
+    },
+    {
+      "id": "update_worker_thread",
+      "trigger": "MFC Update handler launches callback 0x00410310",
+      "condition": "worker thread starts",
+      "usb_operation": "orchestrates standard device discovery and dangerous artifact stages",
+      "expected_response": "worker reaches the product-ID branch before selecting an artifact",
+      "failure_behavior": "worker/UI error path; exact visible text UNKNOWN",
+      "evidence": [
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x00410310",
+          "claim": "The Update callback contains the device-ID branch and calls the dangerous worker at +0x00410C25, +0x00410F10, and +0x00411002."
+        }
+      ],
+      "confidence": "HIGH",
+      "safety": "DANGEROUS_BLOCKED"
+    },
+    {
+      "id": "enumerate_and_open_winusb",
+      "trigger": "updater device discovery",
+      "condition": "a matching SetupAPI interface is present",
+      "usb_operation": "SetupDi enumeration -> CreateFileA -> WinUsb_Initialize -> WinUsb_QueryPipe",
+      "expected_response": "valid WinUSB handle and dynamically enumerated pipe map",
+      "failure_behavior": "UI error / worker failure path; exact message mapping UNKNOWN",
+      "evidence": [
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x0040A212 through +0x0040A40C",
+          "claim": "SetupAPI enumeration, CreateFileA, and WinUsb_Initialize calls are present."
+        },
+        {
+          "classification": "PHYSICALLY_VERIFIED",
+          "source": "docs/DEVICE_PROFILE.md",
+          "claim": "The connected VOD700 is accessible through Microsoft WinUSB."
+        }
+      ],
+      "confidence": "HIGH",
+      "safety": "READ_ONLY_DESCRIPTOR_AND_OPEN"
+    },
+    {
+      "id": "read_product_id",
+      "trigger": "opened WinUSB interface",
+      "condition": "standard device descriptor read succeeds",
+      "usb_operation": "WinUsb_GetDescriptor; inspect idProduct",
+      "expected_response": "18-byte standard USB descriptor",
+      "failure_behavior": "select alternate/unmatched branch",
+      "evidence": [
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x00409740; caller +0x0041046D",
+          "claim": "The function reads the standard descriptor and its caller compares idProduct to 0x5265."
+        }
+      ],
+      "confidence": "HIGH",
+      "safety": "STANDARD_USB_READ_ONLY"
+    },
+    {
+      "id": "select_dm100_artifact",
+      "trigger": "product ID is 0x5265",
+      "condition": "idProduct == 0x5265",
+      "usb_operation": "none; host path selection",
+      "expected_response": "bin/DM100/McuCode.bin becomes selected source path",
+      "failure_behavior": "non-0x5265 branch includes command 0x07 and DM300 paths",
+      "evidence": [
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x0041051E through +0x00410561; string %s\\bin\\DM100\\McuCode.bin",
+          "claim": "The VOD700 PID branch selects the DM100 McuCode path."
+        }
+      ],
+      "confidence": "HIGH",
+      "safety": "HOST_FILE_OPERATION_ONLY"
+    },
+    {
+      "id": "non_vod_compatibility_gate",
+      "trigger": "product ID is not 0x5265",
+      "condition": "alternate device-family branch",
+      "usb_operation": "0x01 interrupt OUT static frame 55AA07...06; expected 0x81 response command 0x87",
+      "expected_response": "response payload at offset 3 is compared with ASCII 1.26",
+      "failure_behavior": "non-match takes an Erase.bin route; this is a dangerous alternate-device path",
+      "evidence": [
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x00410566..+0x00410616",
+          "claim": "The alternate branch builds 0x07, validates 0x87, and compares response payload bytes with 1.26."
+        }
+      ],
+      "confidence": "HIGH",
+      "safety": "DANGEROUS_BLOCKED"
+    },
+    {
+      "id": "non_vod_dangerous_artifact_route",
+      "trigger": "non-VOD compatibility gate completes",
+      "condition": "match selects DM300/McuCode.bin; non-match tries DM300/Erase.bin then Erase.bin",
+      "usb_operation": "same dangerous worker receives stage command 0x03 followed by final interrupt command 0x02; wire details are not captured for this branch",
+      "expected_response": "UNKNOWN",
+      "failure_behavior": "worker/UI error paths",
+      "evidence": [
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x0041061C..+0x00410928 and +0x004109FB",
+          "claim": "The alternate branch opens its artifact path and invokes the dangerous worker; it is outside the VOD700 PID path."
+        }
+      ],
+      "confidence": "HIGH",
+      "safety": "DANGEROUS_BLOCKED"
+    },
+    {
+      "id": "mfc_feedback_control_handler",
+      "trigger": "WM_COMMAND notification code 0 for dialog control 1005 (Feedback)",
+      "condition": "MFC command-map record is dispatched",
+      "usb_operation": "none; host UI handler only",
+      "expected_response": "worker callback 0x0040DB30 is submitted to the MFC thread-launcher candidate",
+      "failure_behavior": "thread-launch failure behavior UNKNOWN",
+      "evidence": [
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x008CBA80 -> 0x0040D000; +0x0040D02F..+0x0040D034",
+          "claim": "The exact WM_COMMAND/control-1005 record maps to a handler that pushes the feedback worker callback 0x0040DB30."
+        }
+      ],
+      "confidence": "HIGH",
+      "safety": "HOST_UI_ONLY"
+    },
+    {
+      "id": "capacity_query",
+      "trigger": "feedback/review tail-storage worker begins",
+      "condition": "interrupt transaction helper succeeds",
+      "usb_operation": "0x01 interrupt OUT 55AA0B...0A; 0x81 interrupt IN 0x8B",
+      "expected_response": "16-byte 0x8B with little-endian value 0x02000000 in captured/validated case",
+      "failure_behavior": "static fallback path attempts a bounded 0x06 probe; exact fallback live behavior not captured",
+      "evidence": [
+        {
+          "classification": "CAPTURE_VERIFIED",
+          "source": "updater_first_vendor.pcapng#0-3",
+          "claim": "Official updater 0x0B/0x8B exchange."
+        },
+        {
+          "classification": "PHYSICALLY_VERIFIED",
+          "source": "reports/LIVE_STORAGE_QUERY_VALIDATION.md",
+          "claim": "One policy-gated physical exchange matched the capture."
+        },
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x0040E670",
+          "claim": "The value is decoded and used to calculate tail-region addresses."
+        }
+      ],
+      "confidence": "VERIFIED",
+      "safety": "READ_ONLY_OPT_IN"
+    },
+    {
+      "id": "feedback_tail_read_loop",
+      "trigger": "feedback worker",
+      "condition": "capacity query returns and each 0x86 acknowledgement succeeds",
+      "usb_operation": "32 iterations of 0x06 address request on 0x01 -> 0x86 on 0x81 -> 0x1008 bulk IN read on 0x82",
+      "expected_response": "AA55AA55 + 4096 data + big-endian SUM32; USBPcap currently splits it as 4096 then 8 bytes",
+      "failure_behavior": "worker failure UI path; a cancelled IRP is not a device reply",
+      "evidence": [
+        {
+          "classification": "CAPTURE_VERIFIED",
+          "source": "updater_first_vendor.pcapng#4-21",
+          "claim": "Two complete iterations at 0x01FB0000 and 0x01FB1000 were captured; third request completion was USBD_STATUS_CANCELED."
+        },
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x0040DB30 through +0x0040DEBE",
+          "claim": "Worker computes capacity-0x50000, loops 32 times in 0x1000 steps, reads 0x1008 bytes, and writes Feedback.bin on the host."
+        }
+      ],
+      "confidence": "HIGH",
+      "safety": "BLOCKED_PENDING_EXPLICIT_LIVE_APPROVAL"
+    },
+    {
+      "id": "review_print_tail_read_loop",
+      "trigger": "separate Review & Print worker",
+      "condition": "capacity query returns and 0x06/0x86 transactions succeed",
+      "usb_operation": "30 iterations from capacity-0x30000 using the same 0x06 and bulk-IN shape",
+      "expected_response": "worker accepts pages whose bulk data begins with ASCII AUTOPHIX",
+      "failure_behavior": "worker reports failure if no accepted pages; exact UI mapping UNKNOWN",
+      "evidence": [
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x0040EFB0 through +0x0040F541; string %s\\Review & Print.txt",
+          "claim": "Worker allocates 0x1E000, loops 30 4 KiB reads, checks AUTOPHIX at post-transport data offset 0, and renders a host Review & Print.txt file."
+        }
+      ],
+      "confidence": "HIGH",
+      "safety": "BLOCKED_PENDING_EXPLICIT_LIVE_APPROVAL"
+    },
+    {
+      "id": "update_prepare",
+      "trigger": "dangerous update worker after DM100 source is loaded",
+      "condition": "source artifact is available",
+      "usb_operation": "0x03 interrupt frame with a big-endian page count, then 0x83 response",
+      "expected_response": "0x83 acknowledgement; capture shows 71 pages for DM100 McuCode.bin",
+      "timeouts_ms": {"interrupt_write": 10000, "interrupt_read": 20000},
+      "failure_behavior": "update worker returns failure and UI path re-enables controls",
+      "evidence": [
+        {
+          "classification": "CAPTURE_VERIFIED",
+          "source": "updater_update_stage.pcapng#0-3",
+          "claim": "Exact 0x03/0x83 exchange captured."
+        },
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x00411330",
+          "claim": "Worker calculates ceiling(source_size / 0x1000) and places it big-endian in the 0x03 frame."
+        }
+      ],
+      "confidence": "HIGH",
+      "safety": "DANGEROUS_BLOCKED"
+    },
+    {
+      "id": "update_page_handshake",
+      "trigger": "each full source page in dangerous update worker",
+      "condition": "0x03 preparation acknowledged",
+      "usb_operation": "0x01 interrupt frame carrying 0x1000 big-endian, then 0x81 response",
+      "expected_response": "0x81 acknowledgement",
+      "timeouts_ms": {"interrupt_write": 10000, "interrupt_read": 20000},
+      "failure_behavior": "worker returns failure before bulk transfer",
+      "evidence": [
+        {
+          "classification": "CAPTURE_VERIFIED",
+          "source": "updater_update_stage.pcapng#4-7",
+          "claim": "Exact 0x01/0x81 exchange captured."
+        },
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x00411330",
+          "claim": "Worker sends this handshake before pipe-selector-3 (endpoint 0x02) bulk OUT."
+        }
+      ],
+      "confidence": "HIGH",
+      "safety": "DANGEROUS_BLOCKED"
+    },
+    {
+      "id": "update_bulk_page",
+      "trigger": "0x01 page handshake acknowledged",
+      "condition": "full 4 KiB source page",
+      "usb_operation": "0x02 bulk OUT: 55AA55AA + raw 4 KiB source page + big-endian SUM32",
+      "expected_response": "subsequent interrupt IN was pending when containment stopped the capture; normal completion response UNKNOWN",
+      "timeouts_ms": {"bulk_write": 10000, "following_interrupt_read": 10000},
+      "failure_behavior": "dangerous worker returns failure on transfer/ack failure",
+      "evidence": [
+        {
+          "classification": "CAPTURE_VERIFIED",
+          "source": "updater_update_stage.pcapng#8-11",
+          "claim": "One valid official-updater bulk OUT was captured; the following IN IRP was cancelled by capture containment before a response."
+        },
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x00411330",
+          "claim": "Worker copies source bytes unchanged into the bulk frame and appends big-endian SUM32."
+        }
+      ],
+      "confidence": "HIGH",
+      "safety": "DANGEROUS_BLOCKED"
+    },
+    {
+      "id": "select_extflash_artifact",
+      "trigger": "stage-command-0x03 dangerous worker returns success",
+      "condition": "Update.exe does not take its command-0x03 failure branch",
+      "usb_operation": "host formats and opens bin/ExtFlashDat.bin, then invokes dangerous worker with 0x04 and big-endian page count 0x1D36; static loop then uses 0x01/page and pipe-selector-3 bulk OUT",
+      "expected_response": "0x84 interrupt acknowledgement is statically expected; no command-0x04 USB records are retained",
+      "timeouts_ms": {"interrupt_write": 10000, "interrupt_read": 20000, "per_page_bulk_write": 10000},
+      "failure_behavior": "worker/UI error branch after a failed command-0x04 call",
+      "evidence": [
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x00410C25 success path -> +0x00410D36 -> +0x00410F10",
+          "claim": "The VOD700 Update worker formats ExtFlashDat.bin and calls the same dangerous worker with stage command 0x04 after the initial command-0x03 source stage succeeds."
+        }
+      ],
+      "confidence": "HIGH",
+      "safety": "DANGEROUS_BLOCKED"
+    },
+    {
+      "id": "final_update_command_0x02",
+      "trigger": "stage-command-0x04 dangerous worker returns success",
+      "condition": "Update.exe does not take its command-0x04 failure branch",
+      "usb_operation": "dangerous worker constructs interrupt command 0x02 with zero page-count argument; exact static request 55AA0200000000000000000000000001",
+      "expected_response": "0x82 interrupt acknowledgement is statically expected; no USB record is retained",
+      "timeouts_ms": {"interrupt_write": 10000, "interrupt_read": 20000},
+      "failure_behavior": "worker/UI error branch after a failed command-0x02 call",
+      "evidence": [
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x00410F10 success path -> +0x00411002",
+          "claim": "The Update worker calls the dangerous worker with command 0x02 after the command-0x04 stage succeeds; the device effect is not recovered."
+        }
+      ],
+      "confidence": "HIGH",
+      "safety": "DANGEROUS_BLOCKED"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "mfc_update_button_handler",
+      "to": "update_worker_thread",
+      "trigger": "handler submits callback 0x00410310",
+      "condition": "common MFC worker-launcher candidate returns",
+      "evidence_classification": "STATIC_ANALYSIS_SUPPORTED"
+    },
+    {
+      "from": "update_worker_thread",
+      "to": "enumerate_and_open_winusb",
+      "trigger": "Update worker begins device setup",
+      "condition": "worker has a dialog context",
+      "evidence_classification": "STATIC_ANALYSIS_SUPPORTED"
+    },
+    {
+      "from": "enumerate_and_open_winusb",
+      "to": "read_product_id",
+      "trigger": "WinUSB initialization succeeds",
+      "condition": "descriptor request succeeds",
+      "evidence_classification": "STATIC_ANALYSIS_SUPPORTED"
+    },
+    {
+      "from": "read_product_id",
+      "to": "select_dm100_artifact",
+      "trigger": "idProduct comparison",
+      "condition": "idProduct == 0x5265",
+      "evidence_classification": "STATIC_ANALYSIS_SUPPORTED"
+    },
+    {
+      "from": "read_product_id",
+      "to": "non_vod_compatibility_gate",
+      "trigger": "idProduct comparison",
+      "condition": "idProduct != 0x5265",
+      "evidence_classification": "STATIC_ANALYSIS_SUPPORTED"
+    },
+    {
+      "from": "non_vod_compatibility_gate",
+      "to": "non_vod_dangerous_artifact_route",
+      "trigger": "0x87 response comparison completes",
+      "condition": "static-only branch; no VOD700 or alternate-device capture exists",
+      "evidence_classification": "STATIC_ANALYSIS_SUPPORTED"
+    },
+    {
+      "from": "mfc_feedback_control_handler",
+      "to": "capacity_query",
+      "trigger": "handler submits callback 0x0040DB30",
+      "condition": "feedback worker starts and its interrupt transaction succeeds",
+      "evidence_classification": "STATIC_ANALYSIS_SUPPORTED"
+    },
+    {
+      "from": "capacity_query",
+      "to": "feedback_tail_read_loop",
+      "trigger": "feedback worker continues",
+      "condition": "0x8B acknowledgement and decoded capacity",
+      "evidence_classification": "STATIC_ANALYSIS_SUPPORTED"
+    },
+    {
+      "from": "capacity_query",
+      "to": "review_print_tail_read_loop",
+      "trigger": "review worker continues",
+      "condition": "0x8B acknowledgement and decoded capacity",
+      "evidence_classification": "STATIC_ANALYSIS_SUPPORTED"
+    },
+    {
+      "from": "select_dm100_artifact",
+      "to": "update_prepare",
+      "trigger": "dangerous update worker dispatch",
+      "condition": "the selected host artifact opens and the command-0x03 worker is called",
+      "evidence_classification": "STATIC_ANALYSIS_SUPPORTED"
+    },
+    {
+      "from": "update_prepare",
+      "to": "update_page_handshake",
+      "trigger": "0x83 acknowledgement",
+      "condition": "first or subsequent full page",
+      "evidence_classification": "CAPTURE_VERIFIED"
+    },
+    {
+      "from": "update_page_handshake",
+      "to": "update_bulk_page",
+      "trigger": "0x81 acknowledgement",
+      "condition": "full 0x1000-byte source page",
+      "evidence_classification": "CAPTURE_VERIFIED"
+    },
+    {
+      "from": "update_bulk_page",
+      "to": "select_extflash_artifact",
+      "trigger": "command-0x03 worker success path",
+      "condition": "normal bulk acknowledgement/worker completion was not captured, but the static success path is recovered",
+      "evidence_classification": "STATIC_ANALYSIS_SUPPORTED"
+    },
+    {
+      "from": "select_extflash_artifact",
+      "to": "final_update_command_0x02",
+      "trigger": "command-0x04 worker success path",
+      "condition": "static branch only; no command-0x04 capture exists",
+      "evidence_classification": "STATIC_ANALYSIS_SUPPORTED"
+    }
+  ],
+  "blocked_actions": [
+    "No state after update_prepare may be replayed, transmitted, or tested live by this project.",
+    "The 0x06 tail-storage states remain parser/planning only until read-only semantics are independently established and a future explicit approval is given.",
+    "No MFC UI automation, updater patching, or firmware file modification was used to create this model."
+  ]
+}

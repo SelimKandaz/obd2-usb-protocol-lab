@@ -38,5 +38,9 @@ any active command and is not part of the read-only evidence set.
 
 Static function `0x0040E670` and helper `0x00410010` independently predict the
 live `0x0B` frame, 16-byte interrupt exchange, `0x06` address layout, and
-bulk-IN follow-on. This raises the byte-level command/framing confidence to
-HIGH. The semantic meaning of the 0x0B value and bulk payload remains MEDIUM.
+bulk-IN follow-on. The later worker recovery identifies the first capture as
+the beginning of a bounded Feedback export path; MFC control ID 1005 maps to
+the callback at `0x0040DB30`. The value is therefore a capacity boundary at
+HIGH confidence, while its physical storage backing and the meaning of
+uncaptured bulk data remain UNKNOWN. This does not make it an Update-button
+preflight or a general safe-memory API.

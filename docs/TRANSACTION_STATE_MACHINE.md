@@ -20,6 +20,15 @@ The `0x06` block-read and `0x02` bulk-write paths are deliberately not exposed
 as active state-machine operations. The latter is classified dangerous and has
 no builder. This module does not send bytes to a physical device.
 
+## Offline updater-worker models
+
+The active client transaction state machine above intentionally remains much
+smaller than the official updater state machine. The latter has now been
+recorded separately in `knowledge/updater_state_machine.json` and
+`reports/UPDATER_STATE_MACHINE.md`, including blocked tail-storage and update
+workers. Those records are for parser/replay/research use; importing them does
+not add a client dispatch path.
+
 `WinUsbPipeTransport` and the low-level overlapped WinUSB pipe methods are
 implemented, but policy remains the only dispatch gate. Descriptor probing does
 not call them. The opt-in command restores the disabled policy after one

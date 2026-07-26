@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "accessed_on": "2026-07-26",
+  "policy": "No proprietary updater binary, firmware artifact, capture, or hash lookup was uploaded to a public analysis service. Public sources are correlation aids only.",
+  "sources": [
+    {
+      "id": "ancel_vod700_product",
+      "url": "https://www.ancel.com/products/ancel-vod700",
+      "publisher": "ANCEL",
+      "classification": "INTERNET_CORRELATED",
+      "observations": [
+        "The official product page describes a Feedback Function for reporting problems to technical support."
+      ],
+      "connection_to_local_evidence": "The static updater creates Feedback.bin from the capacity-0x50000 tail worker. This supports only the worker's user-facing feature context, not the binary format or protocol semantics.",
+      "limitations": "The page does not identify USB commands, memory addresses, or hardware components."
+    },
+    {
+      "id": "ancel_vod700_download_page",
+      "url": "https://www.anceltech.com/product/detail?id=VOD7005984218324582",
+      "publisher": "ANCEL Technology",
+      "classification": "INTERNET_CORRELATED",
+      "observations": [
+        "The official product page offers Upgrade Software and a user manual for VOD700."
+      ],
+      "connection_to_local_evidence": "Supports the provenance of the locally supplied official updater package; it does not validate a particular package hash.",
+      "limitations": "No USB protocol or artifact container details are published on the page."
+    },
+    {
+      "id": "ancel_vod700_manual",
+      "url": "https://www.anceltech.com/Public/Uploads/filetxt/20220705/62c3fdfab74e9.pdf",
+      "publisher": "ANCEL Technology",
+      "classification": "INTERNET_CORRELATED",
+      "observations": [
+        "Official public VOD700 user manual download discovered from the product page."
+      ],
+      "connection_to_local_evidence": "Potential future terminology/reference source only; no unverified protocol behavior is imported from it.",
+      "limitations": "Not used to claim command bytes or hardware identity."
+    },
+    {
+      "id": "ad410_teardown",
+      "url": "https://www.allaboutcircuits.com/news/teardown-tuesday-vehicle-code-reader-check-engine-light-OBDII-scan-tool/",
+      "publisher": "All About Circuits",
+      "classification": "INTERNET_CORRELATED",
+      "observations": [
+        "A teardown of the related ANCEL AD410 describes a GD32F103 MCU, serial flash, and CAN-related hardware."
+      ],
+      "connection_to_local_evidence": "The updater's own metadata/build paths refer to AD410 and DM100 OEM ANCEL lineage, so this is a useful hardware-family hypothesis generator.",
+      "limitations": "It is not a VOD700 teardown. It does not prove the VOD700 MCU, flash size, board layout, or protocol."
+    },
+    {
+      "id": "gd32f103_product_page",
+      "url": "https://www.gigadevice.com/product/mcu/main-stream-mcus/gd32f10x-series/gd32f103",
+      "publisher": "GigaDevice",
+      "classification": "INTERNET_CORRELATED",
+      "observations": [
+        "GD32F103 variants offer USB FS and CAN 2.0B among other peripherals."
+      ],
+      "connection_to_local_evidence": "These capabilities would be compatible with an AD410-family hypothesis, but the VOD700 chip has not been identified.",
+      "limitations": "Capability compatibility is not hardware identification."
+    },
+    {
+      "id": "st_usb_otg_library",
+      "url": "https://www.st.com/resource/en/user_manual/cd00289278-stm32f105xx-stm32f107xx-stm32f2xx-and-stm32f4xx-usb-on-the-go-host-and-device-library-stmicroelectronics.pdf",
+      "publisher": "STMicroelectronics",
+      "classification": "INTERNET_CORRELATED",
+      "observations": [
+        "ST documents stock USB/DFU library behavior and VID 0x0483 in its ecosystem."
+      ],
+      "connection_to_local_evidence": "The VOD700 uses VID 0x0483 but a vendor-specific interface and PID 0x5265; current evidence does not match stock DFU transport.",
+      "limitations": "ST's VID does not identify the actual MCU or prove the VOD700 implements an ST bootloader."
+    },
+    {
+      "id": "usbd_status_canceled_mapping",
+      "url": "https://android.googlesource.com/platform/external/libusb/+/refs/heads/pie-arc/libusb/os/windows_usbdk.c",
+      "publisher": "Android Open Source Project / libusb source mirror",
+      "classification": "INTERNET_CORRELATED",
+      "observations": [
+        "The source maps USBD_STATUS_CANCELED to 0xC0010000."
+      ],
+      "connection_to_local_evidence": "Matches the third 0x06 completion and the update-stage final IN completion. They are recorded as cancelled host-side IRPs, not device replies.",
+      "limitations": "The status explains USBPcap completion classification, not why the controller contained the updater."
+    }
+  ],
+  "negative_searches": [
+    {
+      "queries": [
+        "VOD700 Update.exe",
+        "DM100UpdateCustom_OEM_ANCEL",
+        "McuCode.bin Autophix",
+        "0483 5265 VOD700",
+        "DM100 McuCode.bin github"
+      ],
+      "result": "No authoritative public protocol repository, matching updater source, VOD700 PCB teardown, or public artifact format specification was found during this pass.",
+      "classification": "UNKNOWN"
+    }
+  ],
+  "conclusion": "The public evidence supports product feature terminology, update-software provenance, a related AD410/DM100 lineage hypothesis, and USB cancellation interpretation. It does not identify the VOD700 MCU or prove a firmware/container format."
+}

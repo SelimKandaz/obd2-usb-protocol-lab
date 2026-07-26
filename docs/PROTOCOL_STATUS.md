@@ -1,31 +1,41 @@
 # Protocol Status
 
-| Feature | Status | Evidence | Confidence | Safe to query |
-|---|---|---|---|---|
-| USB enumeration | done | 20 live endpoint-0 records; addresses 5 -> 6 | VERIFIED LIVE | yes |
-| USBPcap root-hub mapping | done | genuine captures on `\\.\USBPcap1` | VERIFIED LIVE | n/a |
-| Endpoint discovery | done | descriptors declare `0x81`, `0x01`, `0x82`, `0x02` | VERIFIED LIVE | yes |
-| First updater transaction | done | 22 live records, address 6, no synthetic records | VERIFIED LIVE | n/a |
-| 16-byte interrupt request framing | done | four live OUT frames plus static builder agreement | VERIFIED HIGH | approval required |
-| 16-byte interrupt response framing | done | three live IN responses plus static helper agreement | VERIFIED HIGH | approval required |
-| Request checksum | done | SUM8 matches all four live OUT frames and static routine | VERIFIED HIGH | n/a |
-| Response checksum | done | SUM8 matches all three live 16-byte IN responses | VERIFIED HIGH | n/a |
-| `0x0B` request bytes | done | exact live request and static `0x0040E670` match | VERIFIED HIGH | approval required |
-| `0x0B` response/value | done | `0x8B`, value `0x02000000`, static decode and one physical exchange agree | VERIFIED LIVE | explicit approval required |
-| `0x06` request bytes/fields | done | three live addresses and static builder match | VERIFIED HIGH | approval required |
-| `0x06` response/value | partial | `0x86`, zero value, three live responses | HIGH bytes; MEDIUM meaning | approval required |
-| Owner-approved live `0x0B` validation | done | exact `0x0B` OUT → `0x8B` IN on physical VOD700; one earlier run returned `0x05` | VERIFIED LIVE; `0x05` semantics UNKNOWN | explicit approval required |
-| Bulk-IN preliminary read | partial | repeated 4,096-byte and 8-byte patterns on `0x82` | HIGH pattern; UNKNOWN meaning | approval required |
-| Bulk-OUT firmware write | observed in separate update-stage trace | one official-updater `0x02` submit, 4,104 bytes; no lab-generated write | VERIFIED dangerous | no |
-| Heartbeat / polling | partial | repeated `0x86` and bulk-IN payloads within update path | MEDIUM | no |
-| Firmware version query | blocked | no distinct command identified | UNKNOWN | no |
-| Response status/NACK semantics | partial | only successful `0x8B`/`0x86` responses observed | MEDIUM | no |
+Evidence taxonomy and source references live in
+[`knowledge/protocol_knowledge.json`](../knowledge/protocol_knowledge.json).
+Confidence describes strength; evidence classification describes the kind of
+support. A high-confidence byte layout is not automatically safe to transmit.
+
+| Feature | Status | Strongest evidence | Live status |
+|---|---|---|---|
+| USB descriptor/profile | complete | PHYSICALLY_VERIFIED | standard reads allowed |
+| WinUSB pipe map | complete | PHYSICALLY_VERIFIED + STATIC | standard query allowed |
+| USBPcap submit/completion correlation | complete | CAPTURE_VERIFIED + parser tests | offline only |
+| 16-byte interrupt frame | complete | CAPTURE_VERIFIED + STATIC | builder only for approved `0x0B` |
+| SUM8 trailer | complete | CAPTURE_VERIFIED + STATIC | parser/builder verified |
+| `0x0B -> 0x8B` | complete | PHYSICALLY_VERIFIED + capture + static | explicit opt-in only |
+| `0x06 -> 0x86` address layout | complete bytes; semantic bounded | capture + static tail workers | blocked |
+| `0x82` feedback bulk frame | complete captured shape | capture + static | parser only |
+| Feedback tail window | mapped | capture + static | blocked |
+| Review & Print tail window | mapped static-only | STATIC | blocked |
+| `0x03 -> 0x83` | complete captured frame | capture + static | dangerous, blocked |
+| `0x04 -> 0x84` ExtFlash stage | exact static candidate only | static worker + artifact size | dangerous, blocked |
+| final interrupt `0x02 -> 0x82` | exact static candidate only | static worker control flow | dangerous, blocked |
+| `0x01 -> 0x81` page handshake | complete captured frame | capture + static | dangerous, blocked |
+| `0x02` update bulk page | complete captured layout | capture + static | dangerous, blocked |
+| DM100 first update page matching | complete | capture + static + offline match | offline only |
+| Container extraction/decryption | not recovered | structural scans only | no live use |
+| MCU/flash/bootloader identification | unknown | related-device research only | no claim |
+| Version/identity vendor request | unknown | no exact bytes | blocked |
+| ECU/vehicle protocol | out of scope for current session | no vehicle connection | blocked |
 
 ## Safety gate
 
-`identify`, `version`, and `0x06` remain disabled for live transport. The
-evidence-backed `0x0B` entry is classified `READ_ONLY` and remains disabled by
-default; `vod700 storage-query --approve-live` is the only explicit opt-in
-dispatch path. It was validated against the physical device and returned the
-canonical `0x8B` response. The earlier `0x05` observation remains unknown and
-is not treated as a successful response.
+The default client never sends vendor protocol bytes. The only exception is
+`vod700 storage-query --approve-live`, which performs one verified `0x0B`
+transaction after explicit command-line approval and restores the disabled
+policy state afterwards. It should not be used as a routine baseline.
+
+`0x06`, all update commands (`0x01`, `0x03`), bulk OUT, erase/recovery,
+firmware, reset, unknown response handling, and all ECU interactions remain
+blocked. Offline parsers and memory plans exist to preserve knowledge without
+turning capture-derived bytes into active traffic.

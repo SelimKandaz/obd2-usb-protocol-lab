@@ -1,28 +1,37 @@
 # Next Captures
 
-The first updater transaction is now canonicalized at
-`private_samples/captures/updater_first_vendor.pcapng`; do not repeat it.
+The canonical reconnect, preliminary updater transaction, and contained
+update-stage capture already exist. Do not repeat them as baselines.
 
-The next evidence target is the boundary after the observed preliminary
-`0x06`/bulk-IN reads. Any future capture must be separately approved and must
-stop before `0x02` bulk OUT or firmware transfer. The existing controller now
-contains the updater on the first USB record, so it is suitable only for a
-newly scoped scenario after changing its capture label and output path.
+## Highest-value future physical evidence
 
-Before any live command execution:
+1. **Passive Feedback workflow capture, no update action.** Use the updater's
+   `Feedback` control (dialog ID 1005, statically mapped to worker
+   `0x0040DB30`); run a bounded root-hub capture and contain the updater before
+   any `0x02` bulk OUT. This can prove the complete 32-page storage-export path
+   and its normal termination.
+2. **Passive Review & Print workflow capture, no update action.** Capture the
+   separate 30-page range at `capacity-0x30000`. It can validate the
+   `AUTOPHIX` signature and clarify the opaque post-signature fields.
+3. **Non-invasive board-marking inspection.** A clear photo of the main IC and
+   flash marking would be much stronger MCU/flash evidence than VID or an OEM
+   lineage hypothesis.
 
-1. Validate the new parser/builders against the private replay fixture.
-2. Review the exact request, response, timeout, maximum length, and risk.
-3. Obtain explicit owner approval for one command.
-4. Exercise the command against the mock/replay device first.
+## Mandatory safety boundary
 
-The `0x0B`/`0x8B` query has now been validated once on the physical device and
-must not be repeated as a baseline. `0x06`, bulk OUT, firmware, erase, driver
-replacement, vehicle connection, and replay of update-stage traffic remain
-unauthorized. Any future capture must target a distinct unknown command or
-state and requires a separate explicit approval.
+- Do not click Update/Upgrade/Download/Recover/Flash/Erase/Write/Firmware.
+- Do not replay `0x01`, `0x02`, `0x03`, `0x04`, `0x06`, bulk OUT, or any
+  unverified command.
+- Do not use `Erase.bin`, `McuCode.bin`, or `ExtFlashDat.bin` in a live flow.
+- Keep the device disconnected from a vehicle.
+- Do not replace the WinUSB driver or patch the official updater.
 
-For a future bounded passive capture, the controller launches `Update.exe`
-itself with `private_samples/updater` as the working directory. Do not launch
-a second copy manually; this avoids the `C:\Windows\System32\bin\McuCode.bin`
-working-directory failure.
+`0x0B` is already physically validated and must not be re-run merely as a
+baseline. The only possible future active `0x06` experiment requires the
+three evidence gates recorded in `knowledge/memory_map.json` plus explicit
+owner approval; it is not currently authorized.
+
+For a bounded passive updater capture, launch only the controller-managed
+`Update.exe` instance with `private_samples\updater` as its working directory.
+Do not start a second copy manually; doing so can recreate the
+`C:\Windows\System32\bin\McuCode.bin` working-directory failure.

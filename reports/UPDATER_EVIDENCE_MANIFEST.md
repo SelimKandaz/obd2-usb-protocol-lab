@@ -11,6 +11,7 @@ No binary content is reproduced here.
 - Archive SHA-256:
   `0F23628CF36C57541D51458A1871D3E4EEEDF87BB73690661414540530BBC25C`
 - Archive entries: 41
+- Archive file members: 27 (the other 14 entries are directories)
 - Path-traversal or absolute-path entries: 0
 - Duplicate ZIP entry names: 0
 - Nested archives: 0
@@ -23,6 +24,14 @@ values. There are 23 hash groups with duplicates, covering 81 file instances.
 This is explained by three equivalent extracted layouts plus WDF coinstaller
 reuse across DM100, DM100HC, and DM300. The original ZIP is the only
 single-instance hash. No duplicate evidence was deleted.
+
+## 2026-07-26 archive verification
+
+`vod700 firmware verify-archive` performs standard ZIP CRC validation and
+compares each safe archive file member with the existing extracted root without
+extracting or modifying anything. For the canonical archive, all 27 file
+members passed CRC validation and byte-match the root working tree. The private
+result is `private_samples/analysis/release_archive_verification.json`.
 
 ## Canonical hashes
 
@@ -37,4 +46,3 @@ single-instance hash. No duplicate evidence was deleted.
 The complete per-path inventory remains private in
 `private_samples/updater_inventory.json`. `private_samples/` is covered by the
 repository ignore rule, and no private evidence appears in git status.
-

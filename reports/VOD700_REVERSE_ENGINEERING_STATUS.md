@@ -1,109 +1,78 @@
-# VOD700 Reverse-Engineering — Current Project Status
+# VOD700 Reverse-Engineering Status
 
 Date: 2026-07-26
 
-This is the current status of the independent, evidence-driven VOD700 USB
-client. Historical milestone reports retain the earlier snapshots; this file
-is the present acceptance record.
+This is the current evidence boundary, not a claim that the full VOD700 or
+vehicle protocol has been reconstructed.
 
-## Device and transport
+## Completed, evidence-backed work
 
-- VID/PID: `0x0483/0x5265`, revision `0x0200`
-- Microsoft WinUSB (`winusb.inf`), no driver replacement
-- One vendor-specific interface (`0xFF/0xFF/0x00`)
-- Interrupt OUT/IN: `0x01`/`0x81`, 16-byte packets
-- Bulk OUT/IN: `0x02`/`0x82`, 64-byte packets
-- Two Windows interface paths resolve to the same endpoint map
-- Live descriptor/device/endpoint checks pass with the connected VOD700
+- Physical USB profile: WinUSB, VID/PID `0x0483/0x5265`, interface and four
+  endpoint roles are physically verified.
+- USBPcap tooling now correlates submit/completion pairs, including reused IRP
+  values and cancellation status, without treating captures as a flat packet
+  list.
+- The 16-byte interrupt framing and SUM8 checksum are capture/static verified.
+- `0x0B -> 0x8B` is capture/static/physical verified and remains a one-shot,
+  explicit opt-in only.
+- `0x06 -> 0x86 -> 0x82` has a capture-verified read-shaped layout and two
+  statically mapped tail-storage workers, but is still blocked live.
+- `0x03`, `0x01`, and bulk `0x02` are exact dangerous update-stage frames,
+  captured from the official updater and parser-only in this project.
+- The exact MFC `Update` and `Feedback` command-map records, their worker
+  callbacks, and the separation between their update versus tail-read paths
+  are statically recovered.
+- The updater's VOD700 PID branch selects DM100 `McuCode.bin`; the first
+  captured update bulk page exactly matches the first local DM100 artifact
+  page, proving raw host-page transport for that frame.
+- Static success control flow is DM100 command `0x03` -> `ExtFlashDat.bin`
+  command `0x04` -> final interrupt command `0x02`; only command `0x03` has
+  capture-verified wire bytes.
+- All updater/firmware artifacts have reproducible, privacy-preserving
+  inventories; the retained release ZIP passed CRC verification and all 27
+  file members byte-match the local extracted tree. No raw MCU firmware
+  executable or container decoder is recovered.
+- The public knowledge base now includes protocol, state machine, memory map,
+  external-source correlation, and validation tooling for future ESP32 work.
 
-## Evidence chain
+## Verified storage/address facts
 
-Canonical reconnect baseline:
+| Item | Evidence | Confidence | Safety |
+|---|---|---|---|
+| Capacity boundary `0x02000000` | physical `0x0B`, capture, static decode | VERIFIED | query opt-in |
+| Feedback window `0x01FB0000..0x01FD0000` | static 32-page worker + first two capture pages | HIGH | blocked |
+| Review & Print window `0x01FD0000..0x01FEE000` | static 30-page `AUTOPHIX` worker | HIGH | blocked |
+| Physical backing/flash type | no board/firmware proof | UNKNOWN | no claim |
 
-- `private_samples/captures/baseline_reconnect.pcapng`
-- 20 live endpoint-0 records, address transition `5 -> 6`
-- SHA-256: `3484911891084476D74E8D3553D15F13BE5676E09EED241388E7E5AEC4182878`
+## Remaining unknowns
 
-Canonical updater preliminary transaction:
+- Exact VOD700 MCU/flash chip, board topology, bootloader and application map.
+- Opaque `McuCode.bin`/`ExtFlashDat.bin` format, signature, and any device-side
+  transform.
+- Review & Print UI map, later update-stage wire bytes, normal post-bulk
+  response, and the device effects of selectors 4 and 2.
+- Meaning of the static-only non-VOD `0x07`, `0x0A`, prior unretained `0x05`,
+  VOD700 version/identity commands, status/error conventions, retries, and
+  reset behavior.
+- Semantic guarantee that `0x06` cannot change state for all addresses/states.
+- All vehicle/ECU/OBD protocol behavior; vehicle connection is out of scope.
 
-- `private_samples/captures/updater_first_vendor.pcapng`
-- 9,748 bytes; 22 live URBs; bus 1/address 6
-- SHA-256: `5475B9B6C40413BB97C791C15CF286503626AEC64D90BD831CA3B1D278A8B731`
-- First request: `55 AA 0B 00 00 00 00 00 00 00 00 00 00 00 00 0A`
-- Response: `AA 55 8B 00 00 00 02 00 00 00 00 00 00 00 00 8C`
-- Subsequent observed read-only-shaped frames: three `0x06`/`0x86` pairs and
-  preliminary bulk-IN patterns
+## Current blockers
 
-Separate updater update-stage capture:
+No further truthful offline extraction is available from the opaque artifacts
+with the available evidence: standard stream validation, vector scanning,
+static import/call analysis, artifact matching, and public correlation have
+been exhausted without a raw firmware decoder or VOD700 board identity.
 
-- `private_samples/captures/updater_update_stage.pcapng`
-- One official-updater `0x02` bulk OUT (4,104 bytes) was observed
-- The payload is not reproduced, implemented, or sent by this project
+Further progress requires one of:
 
-## Physical validation
+1. Passive capture of a normal Feedback or Review & Print workflow with no
+   update action.
+2. Non-invasive inspection of board component markings.
+3. A lawfully acquired, independently identifiable firmware image or format
+   specification.
+4. Later, an explicitly approved and independently proven bounded read-only
+   storage experiment.
 
-The exact `0x0B` request was sent through the policy-gated WinUSB adapter under
-explicit owner approval. The physical VOD700 returned the canonical `0x8B`
-response and value `0x02000000` (33,554,432). A prior isolated attempt returned
-an unclassified `0x05`; it was not retried blindly and its semantics remain
-unknown. The successful validation is documented in
-`reports/LIVE_STORAGE_QUERY_VALIDATION.md`.
-
-## Implemented software
-
-- Native PCAPNG and USBPcap record decoding, submit/completion correlation,
-  address filtering, endpoint timelines, and checksum analysis
-- Evidence-backed 16-byte framing, additive SUM8 parsing/building, `0x0B` and
-  `0x06` offline lenses, and captured bulk-pattern inspection
-- Mock/replay transport and targeted fixture tests
-- WinUSB descriptor/probe client using the existing Microsoft driver
-- Overlapped WinUSB pipe adapter with a policy gate
-- Explicit `vod700 storage-query --approve-live` command for exactly one
-  verified `0x0B`/`0x8B` transaction; default policy remains disabled
-- Offline OBD-II CAN/ISO-TP codecs with SAE J1979 PID, DTC, and VIN decoders
-- Machine-readable ESP32-oriented protocol knowledge base in
-  `knowledge/protocol_knowledge.json`
-- Wheel packaging and reproducible Windows/PowerShell workflows
-
-## Deliberately not implemented
-
-- `0x06` dispatch: adjacent to bulk reads/update state; bytes are parsed only
-  offline
-- Any `0x02` bulk OUT, firmware, erase, flash, recover, or update operation
-- Guessed identify/version commands: no distinct evidence-backed bytes exist
-- Live ECU/OBD2 diagnostic commands, DTC clearing, vehicle connection, or ECU
-  writes
-
-These are not missing coding tasks that can be completed honestly from the
-current evidence. Implementing them would require unknown protocol bytes or
-would violate the project's read-only safety boundary.
-
-## Validation and artifact
-
-- `pytest`: 63 passed
-- Ruff: clean
-- mypy: clean (28 source files)
-- Python compilation: clean
-- Wheel build: successful (`dist/vod700-0.1.0-py3-none-any.whl`)
-- Worktree: clean
-- Final validation commit: use `git rev-parse HEAD` (the worktree is clean)
-
-## Remaining blockers and recommended priorities
-
-No physical interaction is required for the current read-only acceptance
-scope. If research continues, the safest productive order is:
-
-1. Keep the canonical reconnect and updater captures immutable; do not repeat
-   them as baselines.
-2. Perform static-only call-graph work for version/identify candidates; do not
-   invent bytes from timeout paths or non-VOD700 branches.
-3. If a new physical experiment is explicitly approved, passively capture a
-   distinct updater state and stop before any `0x02` bulk OUT. Record the raw
-   response before attempting interpretation.
-4. Use `knowledge/protocol_knowledge.json` to build an ESP32 fixture that
-   reproduces only the verified `0x0B`/`0x8B` exchange and checksum behavior.
-5. Treat live ECU/OBD2 bridging, `0x06`, firmware, erase, and update operations
-   as separate blocked projects requiring new evidence and safety review.
-
-The project is complete for the verified, read-only USB scope. The unknown
-update/ECU protocol surface is explicitly blocked rather than fabricated.
+No destructive, update, erase, unknown, or vehicle operation is justified by
+the current evidence.

@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Read-only, evidence-driven USB protocol research tools for the ANCEL/Autophix VOD700"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "VOD700 Protocol Lab" }]
 keywords = ["usb", "winusb", "reverse-engineering", "pcapng", "usbpcap", "vod700"]
 classifiers = [

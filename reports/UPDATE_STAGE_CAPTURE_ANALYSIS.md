@@ -43,3 +43,20 @@ the canonical read-oriented evidence, separate from this update-stage trace.
 The project sent no packet. The official updater generated the observed bulk
 OUT. `Update.exe` and USBPcapCMD are no longer running, and the device remains
 present as `Status=OK`. No subsequent capture or update action is authorized.
+
+## 2026-07-26 artifact correlation
+
+The update-stage frame is now correlated with the local official package using
+the offline-only `vod700 firmware match-bulk` tool. Its 4,096-byte data section
+matches byte-for-byte the first page of `bin\DM100\McuCode.bin`:
+
+- DM100 artifact SHA-256:
+  `D36A9A4ECD084CB787096089DCBB4FF71104D25BBAA07F69D60CA3B9AFEB4C78`
+- Matching page SHA-256:
+  `D0D028CE79946A7DB54E4B0D7A424085AC15CE4273007FC9D007F5B781CA313B`
+- Page equality: `true`; transport SUM32BE: valid
+- `0x03` page count `0x0047` equals `ceil(287552 / 4096) = 71`
+
+This proves the captured host worker transports the opaque DM100 page without
+a host-side transform for this page. It does not establish the inner container
+format or authorize a repeat of the update transfer.

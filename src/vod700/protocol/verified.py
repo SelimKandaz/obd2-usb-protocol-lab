@@ -17,6 +17,12 @@ RESPONSE_MAGIC = b"\xAA\x55"
 CHECKSUM_OFFSET = 15
 STORAGE_QUERY = 0x0B
 BLOCK_READ = 0x06
+UPDATE_PREPARE = 0x03
+UPDATE_BLOCK = 0x01
+BULK_TRANSFER_SIZE = 0x1008
+BULK_BODY_SIZE = 0x1000
+BULK_READ_MAGIC = b"\xAA\x55\xAA\x55"
+BULK_WRITE_MAGIC = b"\x55\xAA\x55\xAA"
 
 
 def _check_frame(frame: bytes, magic: bytes) -> bytes:
@@ -148,6 +154,59 @@ def parse_response(frame: bytes) -> VerifiedResponse:
     )
 
 
+@dataclass(frozen=True)
+class UpdatePrepareObservation:
+    """Captured dangerous update-prepare framing, for offline inspection only."""
+
+    raw: bytes
+    page_count: int
+    checksum: int
+
+
+def parse_update_prepare(frame: bytes) -> UpdatePrepareObservation:
+    """Parse the observed ``0x03`` page-count frame without enabling it.
+
+    The two bytes after command ``0x03`` are big-endian and match the ceiling
+    of the selected DM100 artifact's size divided by 4 KiB in the captured
+    updater path.  This parser has no live transport dependency.
+    """
+
+    raw = _check_frame(frame, REQUEST_MAGIC)
+    if raw[2] != UPDATE_PREPARE:
+        raise ValueError(f"expected dangerous update-prepare command 0x03, got 0x{raw[2]:02X}")
+    if any(raw[5:CHECKSUM_OFFSET]):
+        raise ValueError("captured 0x03 frame has non-zero reserved bytes")
+    return UpdatePrepareObservation(
+        raw=raw,
+        page_count=int.from_bytes(raw[3:5], "big"),
+        checksum=raw[CHECKSUM_OFFSET],
+    )
+
+
+@dataclass(frozen=True)
+class UpdateBlockObservation:
+    """Captured dangerous ``0x01`` block-handshake framing, offline only."""
+
+    raw: bytes
+    block_size: int
+    checksum: int
+
+
+def parse_update_block(frame: bytes) -> UpdateBlockObservation:
+    """Parse the observed ``0x01`` full-4KiB block handshake without enabling it."""
+
+    raw = _check_frame(frame, REQUEST_MAGIC)
+    if raw[2] != UPDATE_BLOCK:
+        raise ValueError(f"expected dangerous update-block command 0x01, got 0x{raw[2]:02X}")
+    if any(raw[5:CHECKSUM_OFFSET]):
+        raise ValueError("captured 0x01 frame has non-zero reserved bytes")
+    return UpdateBlockObservation(
+        raw=raw,
+        block_size=int.from_bytes(raw[3:5], "big"),
+        checksum=raw[CHECKSUM_OFFSET],
+    )
+
+
 def classify_bulk_in(payload: bytes) -> str:
     """Classify only the exact bulk-IN patterns seen in the canonical capture."""
     if len(payload) == 4096 and payload[:4] == b"\xAA\x55\xAA\x55" and set(payload[4:]) == {0xFF}:
@@ -155,6 +214,58 @@ def classify_bulk_in(payload: bytes) -> str:
     if payload == bytes.fromhex("ffffffff000ff1fe"):
         return "8-byte-ffffffff000ff1fe-trailer"
     return "unknown"
+
+
+@dataclass(frozen=True)
+class BulkReadObservation:
+    """Lossless metadata for the captured 4 KiB bulk-IN response layout.
+
+    This is an offline parser only.  It proves the layout of the captured
+    response, not that arbitrary ``0x06`` requests are safe to dispatch.
+    """
+
+    raw_length: int
+    prefix: bytes
+    data: bytes
+    trailing_sum32_be: int
+    calculated_sum32: int
+    checksum_valid: bool
+    data_sha256: str
+
+
+def reassemble_bulk_read_fragments(fragments: tuple[bytes, ...] | list[bytes]) -> bytes:
+    """Reassemble the exact 4,096-byte + 8-byte capture split.
+
+    USBPcap recorded each observed logical bulk-IN frame as a 4,096-byte
+    completion followed by an 8-byte completion.  The updater's static worker
+    requests one ``0x1008``-byte buffer.  This helper only joins those already
+    captured fragments and rejects all other shapes.
+    """
+
+    if tuple(map(len, fragments)) != (4096, 8):
+        raise ValueError("captured bulk-read fragments must be exactly 4096 bytes then 8 bytes")
+    return b"".join(fragments)
+
+
+def inspect_bulk_read(payload: bytes) -> BulkReadObservation:
+    """Validate the capture-verified ``AA55AA55 + 4KiB + SUM32-BE`` layout."""
+
+    if len(payload) != BULK_TRANSFER_SIZE:
+        raise ValueError(f"bulk read observation must be exactly {BULK_TRANSFER_SIZE} bytes")
+    if payload[:4] != BULK_READ_MAGIC:
+        raise ValueError(f"unexpected bulk-IN magic: {payload[:4].hex()}")
+    data = payload[4:-4]
+    trailing = int.from_bytes(payload[-4:], "big")
+    calculated = sum(payload[:-4]) & 0xFFFFFFFF
+    return BulkReadObservation(
+        raw_length=len(payload),
+        prefix=payload[:4],
+        data=data,
+        trailing_sum32_be=trailing,
+        calculated_sum32=calculated,
+        checksum_valid=trailing == calculated,
+        data_sha256=sha256(data).hexdigest(),
+    )
 
 
 @dataclass(frozen=True)
@@ -168,6 +279,7 @@ class BulkWriteObservation:
     calculated_sum32: int
     checksum_valid: bool
     payload_sha256: str
+    data_sha256: str
 
 
 def inspect_bulk_write(payload: bytes) -> BulkWriteObservation:
@@ -186,4 +298,5 @@ def inspect_bulk_write(payload: bytes) -> BulkWriteObservation:
         calculated_sum32=calculated,
         checksum_valid=trailing == calculated,
         payload_sha256=sha256(payload).hexdigest(),
+        data_sha256=sha256(payload[4:-4]).hexdigest(),
     )

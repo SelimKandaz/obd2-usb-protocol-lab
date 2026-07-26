@@ -1,12 +1,16 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "protocol": "VOD700-USB-v1",
   "updated": "2026-07-26",
-  "confidence_legend": {
-    "PHYSICAL_VERIFIED": "Observed in a controlled exchange with the physical VOD700.",
-    "CAPTURE_VERIFIED": "Observed in a genuine USBPcap capture.",
-    "STATIC_CORRELATED": "Derived from updater code and independently matched to capture bytes.",
-    "HYPOTHESIS": "Useful working interpretation; not safe to implement as fact.",
+  "evidence_classification_legend": {
+    "PHYSICALLY_VERIFIED": "Observed in a controlled exchange with the physical VOD700.",
+    "CAPTURE_VERIFIED": "Observed in a genuine USBPcap capture made from the official updater or reconnect flow.",
+    "DYNAMIC_ANALYSIS_VERIFIED": "Observed through controlled process or API observation. No such claim is currently required for this record.",
+    "STATIC_ANALYSIS_SUPPORTED": "Recovered from the updater PE and independently bounded by code/data references.",
+    "FIRMWARE_CODE_SUPPORTED": "Recovered from decoded device firmware. No such claim exists yet because no executable firmware image was recovered.",
+    "INTERNET_CORRELATED": "Public-source correlation only; never proof of identity or protocol behavior.",
+    "REPLAY_VERIFIED": "Validated against a synthetic/replay fixture, not the physical device.",
+    "INFERRED": "A bounded interpretation drawn from multiple sources but not directly demonstrated.",
     "UNKNOWN": "No supported interpretation is available."
   },
   "device": {
@@ -21,14 +25,75 @@
       "class": "0xFF",
       "subclass": "0xFF",
       "protocol": "0x00"
-    }
+    },
+    "evidence": [
+      {
+        "classification": "PHYSICALLY_VERIFIED",
+        "source": "docs/DEVICE_PROFILE.md",
+        "claim": "Standard descriptor reads report the USB profile above."
+      },
+      {
+        "classification": "STATIC_ANALYSIS_SUPPORTED",
+        "source": "private package driver/DM100/*/AutomotiveDiagnosticDevice.inf",
+        "claim": "The bundled DM100 WinUSB INF maps USB\\VID_0483&PID_5265&REV_0200 and the updater's device-interface GUID; the installer was not run."
+      }
+    ]
   },
   "endpoints": [
-    {"address": "0x01", "direction": "OUT", "transfer": "interrupt", "max_packet": 16, "interval": 1},
-    {"address": "0x81", "direction": "IN", "transfer": "interrupt", "max_packet": 16, "interval": 1},
-    {"address": "0x02", "direction": "OUT", "transfer": "bulk", "max_packet": 64, "interval": 32},
-    {"address": "0x82", "direction": "IN", "transfer": "bulk", "max_packet": 64, "interval": 32}
+    {
+      "address": "0x01",
+      "direction": "OUT",
+      "transfer": "interrupt",
+      "max_packet": 16,
+      "interval": 1,
+      "evidence_classification": "PHYSICALLY_VERIFIED"
+    },
+    {
+      "address": "0x81",
+      "direction": "IN",
+      "transfer": "interrupt",
+      "max_packet": 16,
+      "interval": 1,
+      "evidence_classification": "PHYSICALLY_VERIFIED"
+    },
+    {
+      "address": "0x02",
+      "direction": "OUT",
+      "transfer": "bulk",
+      "max_packet": 64,
+      "interval": 32,
+      "evidence_classification": "PHYSICALLY_VERIFIED"
+    },
+    {
+      "address": "0x82",
+      "direction": "IN",
+      "transfer": "bulk",
+      "max_packet": 64,
+      "interval": 32,
+      "evidence_classification": "PHYSICALLY_VERIFIED"
+    }
   ],
+  "transport": {
+    "api_path": "SetupAPI -> CreateFileA -> WinUsb_Initialize -> WinUsb_QueryPipe -> WinUsb_{Read,Write}Pipe with overlapped I/O",
+    "pipe_selectors": {
+      "0": "0x81 interrupt IN",
+      "1": "0x01 interrupt OUT",
+      "2": "0x82 bulk IN",
+      "3": "0x02 bulk OUT"
+    },
+    "evidence": [
+      {
+        "classification": "STATIC_ANALYSIS_SUPPORTED",
+        "source": "Update.exe+0x004097F0, +0x00409AB0, +0x00410010",
+        "claim": "The updater enumerates pipes and routes its interrupt helper through selectors 1 and 0."
+      },
+      {
+        "classification": "CAPTURE_VERIFIED",
+        "source": "updater_first_vendor.pcapng#0-21 and updater_update_stage.pcapng#0-11",
+        "claim": "The observed endpoint directions match the static selector map."
+      }
+    ]
+  },
   "interrupt_frame": {
     "length": 16,
     "request_magic": "55AA",
@@ -40,8 +105,24 @@
       "stored_offset": 15,
       "formula": "frame[15] = sum(frame[0:15]) & 0xFF"
     },
-    "response_command_rule": "known successful replies use request_command + 0x80",
-    "evidence": ["updater_first_vendor.pcapng", "Update.exe+0x0040EC70"]
+    "response_command_rule": "Observed successful replies use request_command + 0x80.",
+    "evidence": [
+      {
+        "classification": "CAPTURE_VERIFIED",
+        "source": "updater_first_vendor.pcapng#0-21; updater_update_stage.pcapng#0-7",
+        "claim": "All retained observed 16-byte request and response frames satisfy the SUM8 framing rule."
+      },
+      {
+        "classification": "STATIC_ANALYSIS_SUPPORTED",
+        "source": "Update.exe+0x0040EC70",
+        "claim": "The updater's frame builder writes 55 AA and the sum of bytes 0..14 into byte 15."
+      },
+      {
+        "classification": "REPLAY_VERIFIED",
+        "source": "tests/test_verified_protocol.py",
+        "claim": "Offline parsers reject malformed framing and validate captured layouts."
+      }
+    ]
   },
   "commands": [
     {
@@ -56,15 +137,35 @@
       "max_response_length": 16,
       "timeout_ms": 1000,
       "checksum": "SUM8",
-      "confidence": "PHYSICAL_VERIFIED",
-      "static_references": ["Update.exe+0x0040E670", "Update.exe+0x00410010", "Update.exe+0x0040EC70"],
-      "capture_references": ["updater_first_vendor.pcapng#0-3"],
+      "confidence": "VERIFIED",
       "safety": "READ_ONLY_OPT_IN",
-      "semantic_meaning": "capacity/size query is strongly supported; exact device-state semantics remain MEDIUM"
+      "semantic_meaning": "The updater uses the value as a capacity boundary; it is treated as a read-only capacity/storage query, while underlying storage type remains unknown.",
+      "evidence": [
+        {
+          "classification": "PHYSICALLY_VERIFIED",
+          "source": "reports/LIVE_STORAGE_QUERY_VALIDATION.md",
+          "claim": "The policy-gated 0x0B request produced the canonical 0x8B response and 0x02000000 value once."
+        },
+        {
+          "classification": "CAPTURE_VERIFIED",
+          "source": "updater_first_vendor.pcapng#0-3",
+          "claim": "The official updater sent the exact request on 0x01 and received the exact response on 0x81."
+        },
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x0040E670, +0x00410010, +0x0040EC70",
+          "claim": "The updater builds this frame, validates 0x8B, decodes bytes 3..6 little-endian, and uses the result in bounded tail-region calculations."
+        },
+        {
+          "classification": "REPLAY_VERIFIED",
+          "source": "tests/test_transaction.py; tests/test_verified_protocol.py",
+          "claim": "Replay and parser fixtures validate the exact 16-byte request/response contract."
+        }
+      ]
     },
     {
       "command": "0x06",
-      "name": "addressed_block_read_candidate",
+      "name": "addressed_bulk_read_shape",
       "request_layout": {
         "magic": "55AA",
         "command_offset": 2,
@@ -72,91 +173,274 @@
         "address_width": 4,
         "address_endian": "little",
         "reserved_offset": 7,
-        "block_length_offset": 8,
-        "block_length_observed": "0x10",
+        "wire_length_selector_offset": 8,
+        "wire_length_selector_observed": "0x10",
         "checksum_offset": 15
       },
       "response_command": "0x86",
       "endpoint_out": "0x01",
       "endpoint_in": "0x81",
-      "confidence": "CAPTURE_VERIFIED",
-      "static_references": ["Update.exe+0x00400DB30", "Update.exe+0x00410010"],
-      "capture_references": ["updater_first_vendor.pcapng#4-21"],
-      "safety": "BLOCKED",
-      "semantic_meaning": "addressed read/update-adjacent behavior; not safe to dispatch"
-    }
-  ],
-  "unknown_observations": [
-    {
-      "response_command": "0x05",
-      "frame_length": 16,
-      "checksum": "validly framed in the diagnostic observation, raw bytes not retained",
-      "confidence": "UNKNOWN",
-      "meaning": "unclassified state/status response; do not treat as NACK or success"
-    }
-  ],
-  "static_command_candidates": [
+      "bulk_endpoint_in": "0x82",
+      "logical_bulk_response_length": "0x1008",
+      "confidence": "HIGH",
+      "safety": "BLOCKED_PENDING_EXPLICIT_LIVE_APPROVAL",
+      "semantic_meaning": "The official updater uses the command for bounded tail-region retrieval and then reads a framed 4 KiB bulk payload. Read-only semantics for arbitrary addresses are not established, so dispatch stays blocked.",
+      "evidence": [
+        {
+          "classification": "CAPTURE_VERIFIED",
+          "source": "updater_first_vendor.pcapng#4-21",
+          "claim": "Two successful 0x06/0x86 exchanges at 0x01FB0000 and 0x01FB1000 were followed by valid 4096+8 byte bulk-IN frames; the third request was cancelled before an acknowledgement."
+        },
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x0040DB30",
+          "claim": "The feedback worker starts at capacity-0x50000, performs 32 requests in 0x1000 strides, requests 0x1008 bytes from bulk IN, and writes a host Feedback.bin output."
+        },
+        {
+          "classification": "REPLAY_VERIFIED",
+          "source": "tests/test_capture_transactions.py; tests/test_verified_protocol.py",
+          "claim": "Offline correlation preserves the cancelled third request as incomplete and validates only complete 4096+8 frames."
+        }
+      ]
+    },
     {
       "command": "0x03",
-      "evidence": "special 20-second timeout path in Update.exe",
-      "confidence": "LOW",
-      "request_bytes": "UNKNOWN",
-      "safety": "BLOCKED"
+      "name": "update_prepare_page_count",
+      "request_hex": "55aa0300470000000000000000000049",
+      "response_hex": "aa558300000000000000000000000082",
+      "page_count_field": {
+        "offsets": [3, 4],
+        "endian": "big",
+        "observed_value": 71
+      },
+      "confidence": "HIGH",
+      "safety": "DANGEROUS_BLOCKED",
+      "semantic_meaning": "Observed only in an official-updater firmware-transfer state. The field equals ceil(DM100 McuCode.bin size / 4096); no active implementation is permitted.",
+      "evidence": [
+        {
+          "classification": "CAPTURE_VERIFIED",
+          "source": "updater_update_stage.pcapng#0-3",
+          "claim": "The exact 0x03/0x83 exchange occurred before the bulk update block."
+        },
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x00411330",
+          "claim": "The update worker builds command 0x03 using a big-endian ceiling page count before transferring chunks."
+        }
+      ]
     },
     {
-      "command": "0x07",
-      "evidence": "non-PID-0x5265 device-family branch",
-      "confidence": "LOW",
-      "request_bytes": "PARTIAL",
-      "safety": "BLOCKED"
-    },
-    {
-      "command": "0x0A",
-      "evidence": "special 120-second timeout path in Update.exe",
-      "confidence": "LOW",
-      "request_bytes": "UNKNOWN",
-      "safety": "BLOCKED"
+      "command": "0x01",
+      "name": "update_block_handshake",
+      "request_hex": "55aa0110000000000000000000000010",
+      "response_hex": "aa558100000000000000000000000080",
+      "block_size_field": {
+        "offsets": [3, 4],
+        "endian": "big",
+        "observed_value": "0x1000"
+      },
+      "confidence": "HIGH",
+      "safety": "DANGEROUS_BLOCKED",
+      "semantic_meaning": "Observed immediately before an official-updater bulk OUT frame; no active implementation is permitted.",
+      "evidence": [
+        {
+          "classification": "CAPTURE_VERIFIED",
+          "source": "updater_update_stage.pcapng#4-7",
+          "claim": "The exact 0x01/0x81 exchange occurred immediately before the 0x02 bulk OUT submit."
+        },
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x00411330",
+          "claim": "The dangerous update worker sends the full-page handshake before a pipe-selector-3 (endpoint 0x02) bulk write."
+        }
+      ]
     }
   ],
-  "bulk_observations": [
+  "bulk_frames": [
     {
+      "id": "feedback_bulk_in",
       "endpoint": "0x82",
-      "length": 4096,
-      "prefix": "AA55AA55",
-      "fill": "FF",
-      "confidence": "CAPTURE_VERIFIED",
-      "meaning": "unknown data pattern"
+      "logical_length": "0x1008",
+      "usbpcap_completion_split": [4096, 8],
+      "layout": "AA55AA55 + 4096 data bytes + big-endian SUM32 over the preceding 4100 bytes",
+      "captured_data_pattern": "Two captured pages were all FF; that data pattern does not define all possible pages.",
+      "confidence": "HIGH",
+      "safety": "PARSER_ONLY",
+      "evidence": [
+        {
+          "classification": "CAPTURE_VERIFIED",
+          "source": "updater_first_vendor.pcapng#8-11 and #16-19",
+          "claim": "Two complete bulk frames have valid SUM32 trailers of 0x000FF1FE."
+        },
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x0040DB30",
+          "claim": "The updater requests 0x1008 bytes, skips the first four bytes, and copies 0x1000 bytes into the host buffer."
+        }
+      ]
     },
     {
-      "endpoint": "0x82",
-      "length": 8,
-      "bytes": "FFFFFFFF000FF1FE",
-      "confidence": "CAPTURE_VERIFIED",
-      "meaning": "unknown trailer pattern"
-    },
-    {
+      "id": "update_bulk_out",
       "endpoint": "0x02",
-      "length": 4104,
-      "prefix": "55AA55AA",
-      "trailing_checksum": "SUM32 big-endian over preceding bytes",
-      "confidence": "CAPTURE_VERIFIED",
+      "length": "0x1008",
+      "layout": "55AA55AA + 4096 opaque artifact bytes + big-endian SUM32 over the preceding 4100 bytes",
+      "confidence": "HIGH",
+      "safety": "DANGEROUS_BLOCKED",
+      "evidence": [
+        {
+          "classification": "CAPTURE_VERIFIED",
+          "source": "updater_update_stage.pcapng#8-9",
+          "claim": "The official updater submitted one valid 4104-byte bulk OUT frame."
+        },
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x00411330",
+          "claim": "The update worker copies a source 4 KiB page into this frame and appends a big-endian additive SUM32."
+        }
+      ]
+    }
+  ],
+  "update_artifacts": [
+    {
+      "id": "dm100_mcucode",
+      "file_name": "bin/DM100/McuCode.bin",
+      "size": 287552,
+      "sha256": "D36A9A4ECD084CB787096089DCBB4FF71104D25BBAA07F69D60CA3B9AFEB4C78",
+      "observed_page_count": 71,
+      "first_page_sha256": "D0D028CE79946A7DB54E4B0D7A424085AC15CE4273007FC9D007F5B781CA313B",
+      "confidence": "HIGH",
+      "evidence": [
+        {
+          "classification": "CAPTURE_VERIFIED",
+          "source": "updater_update_stage.pcapng#8",
+          "claim": "The capture contains the first opaque 4 KiB bulk data page."
+        },
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x0041051E through +0x00410846; Update.exe+0x00411330",
+          "claim": "PID 0x5265 selects DM100 McuCode.bin and the update worker uses source pages unchanged in the observed bulk layout."
+        },
+        {
+          "classification": "REPLAY_VERIFIED",
+          "source": "vod700 firmware match-bulk; tests/test_firmware_inspect.py",
+          "claim": "The offline matcher verifies a 4 KiB page by checksum, SHA-256, and byte equality without writing a device."
+        }
+      ]
+    },
+    {
+      "id": "extflashdat",
+      "file_name": "bin/ExtFlashDat.bin",
+      "size": 30629611,
+      "sha256": "1A2B538D499125871436383A78FD6FE0158183970473A43088DB0C2D2CFC993B",
+      "static_stage_command": "0x04",
+      "static_page_count_be": "0x1D36",
+      "static_prepare_request_hex": "55aa041d360000000000000000000056",
+      "static_expected_response_command": "0x84",
+      "static_timeouts_ms": {"interrupt_write": 10000, "interrupt_read": 20000},
+      "confidence": "HIGH",
+      "safety": "DANGEROUS_BLOCKED",
+      "evidence": [
+        {
+          "classification": "STATIC_ANALYSIS_SUPPORTED",
+          "source": "Update.exe+0x00410C25 success path -> +0x00410D36 -> +0x00410F10",
+          "claim": "The VOD700 Update worker formats ExtFlashDat.bin and invokes the dangerous worker with stage command 0x04 after the DM100 command-0x03 stage succeeds."
+        }
+      ],
+      "limitations": "No command-0x04 USB transfer, response, payload page, or device effect is retained. The artifact is opaque and not a recovered flash image."
+    }
+  ],
+  "unknown_or_blocked": [
+    {
+      "id": "command_0x07",
+      "classification": "STATIC_ANALYSIS_SUPPORTED",
+      "scope": "non-PID-0x5265 device-family gate",
+      "safety": "DANGEROUS_BLOCKED",
+      "request_hex_static": "55aa0700000000000000000000000006",
+      "expected_response_command_static": "0x87",
+      "static_response_payload_comparison": "ASCII 1.26 at response payload offset 3",
+      "branch_outcome_static": "match selects DM300/McuCode.bin; non-match tries DM300/Erase.bin then Erase.bin",
+      "semantic_classification": "INFERRED",
+      "meaning": "A version-like compatibility gate is INFERRED; no VOD700 capture or physical evidence exists."
+    },
+    {
+      "id": "command_0x0A",
+      "classification": "STATIC_ANALYSIS_SUPPORTED",
+      "scope": "special 120-second timeout path",
+      "safety": "DANGEROUS_BLOCKED",
+      "meaning": "UNKNOWN"
+    },
+    {
+      "id": "response_0x05",
+      "classification": "UNKNOWN",
+      "scope": "earlier isolated physical observation; raw response not retained as a canonical fixture",
+      "safety": "BLOCKED",
+      "meaning": "UNKNOWN"
+    },
+    {
+      "id": "update_stage_0x04",
+      "classification": "STATIC_ANALYSIS_SUPPORTED",
+      "scope": "VOD700 Update worker after the captured DM100 command-0x03 path succeeds",
+      "safety": "DANGEROUS_BLOCKED",
+      "request_hex_static": "55aa041d360000000000000000000056",
+      "expected_response_command_static": "0x84",
+      "static_timeouts_ms": {"interrupt_write": 10000, "interrupt_read": 20000},
+      "meaning": "ExtFlashDat.bin preparation/transfer stage; device behavior and all wire records are UNKNOWN."
+    },
+    {
+      "id": "final_update_command_0x02",
+      "classification": "STATIC_ANALYSIS_SUPPORTED",
+      "scope": "VOD700 Update worker after static command-0x04 success path",
+      "safety": "DANGEROUS_BLOCKED",
+      "request_hex_static": "55aa0200000000000000000000000001",
+      "expected_response_command_static": "0x82",
+      "static_timeouts_ms": {"interrupt_write": 10000, "interrupt_read": 20000},
+      "meaning": "Final interrupt-stage candidate constructed with zero page-count argument; device effect is UNKNOWN."
+    }
+  ],
+  "linked_knowledge": {
+    "updater_state_machine": "knowledge/updater_state_machine.json",
+    "memory_map": "knowledge/memory_map.json",
+    "external_sources": "knowledge/external_sources.json"
+  },
+  "updater_ui_routes": [
+    {
+      "control": "Update",
+      "control_id": 1,
+      "message_map_record": "Update.exe+0x008CBA68",
+      "handler": "0x0040CFB0",
+      "worker_callback": "0x00410310",
+      "route": "product ID -> DM100 command 0x03 -> ExtFlashDat command 0x04 -> final interrupt command 0x02",
+      "classification": "STATIC_ANALYSIS_SUPPORTED",
+      "confidence": "HIGH",
       "safety": "DANGEROUS_BLOCKED"
+    },
+    {
+      "control": "Feedback",
+      "control_id": 1005,
+      "message_map_record": "Update.exe+0x008CBA80",
+      "handler": "0x0040D000",
+      "worker_callback": "0x0040DB30",
+      "route": "0x0B capacity -> 32 bounded 0x06/0x86/bulk-IN reads",
+      "classification": "STATIC_ANALYSIS_SUPPORTED",
+      "confidence": "HIGH",
+      "safety": "BLOCKED_PENDING_EXPLICIT_LIVE_APPROVAL",
+      "capture_attribution": "The first-vendor capture matches this route. The controller did not retain the exact UI-control event, so it is not proof that the Update control issued 0x0B/0x06."
     }
   ],
   "esp32_reproduction_boundary": {
     "implement_now": [
-      "16-byte interrupt framing",
-      "SUM8 calculation",
-      "0x0B request/0x8B response fixture behavior",
-      "endpoint and timeout model",
-      "offline replay and parser tests"
+      "16-byte interrupt framing and SUM8 reference code",
+      "offline parser fixtures for 0x0B/0x8B and captured bulk frame shapes",
+      "endpoint-independent transport interfaces and capture replay",
+      "knowledge-base validation and explicit safety gates"
     ],
     "do_not_implement_from_this_file": [
       "0x06 transmission",
+      "0x01/0x02/0x03/0x04 update-state transmission",
       "0x02 bulk OUT firmware writes",
-      "erase/recovery/update state transitions",
-      "ECU/OBD2 live commands",
-      "unknown response semantics"
+      "erase/recovery/reset/update state transitions",
+      "unknown response semantics",
+      "ECU/OBD2 live commands"
     ]
   }
 }

@@ -50,9 +50,10 @@ address, endpoint, and phase. The first request/response pair is:
 3. `0x06` interrupt OUT request for address `0x01FB0000`, field byte 8 `0x10`.
 4. `0x86` interrupt IN response, 16 bytes, value `0`.
 5. Two bulk-IN reads on `0x82`: 4,096 bytes followed by 8 bytes.
-6. The same `0x06` request/response plus bulk-IN pattern repeats at addresses
-   `0x01FB1000` and `0x01FB2000`; the final request is cancelled when the
-   bounded controller contains the updater.
+6. The complete request/response/bulk-IN pattern repeats at `0x01FB1000`.
+   The request at `0x01FB2000` is submitted, but its completion is
+   `0xC0010000` (cancelled by capture containment); no `0x86` or bulk payload
+   was captured for that third address.
 
 ## Integrity and framing
 
@@ -78,3 +79,16 @@ and dynamic agreement at HIGH confidence for bytes, endpoints, and framing.
 
 No `0x02` bulk OUT occurred. No firmware write was captured. The capture
 therefore stops before any bulk-OUT update stage.
+
+## 2026-07-26 semantic refinement
+
+Static analysis now identifies this as the beginning of the updater's bounded
+Feedback export worker at `Update.exe+0x0040DB30`: it uses the `0x0B` capacity
+value, begins at `capacity - 0x50000`, and plans 32 x 4 KiB reads into a host
+`Feedback.bin`. The capture proves the first two pages of that worker, not a
+general-purpose safe memory API. See `reports/MEMORY_STORAGE_ANALYSIS.md`.
+
+The recovered MFC record at `Update.exe+0x008CBA80` maps dialog control 1005
+(`Feedback`) to handler `0x0040D000`, which launches this worker. This corrects
+an earlier UI attribution: the capture bytes match the Feedback route; they do
+not prove that control 1 (`Update`) itself issued `0x0B` or `0x06`.

@@ -55,9 +55,15 @@ class CaptureAnalysis:
     warnings: list[str]
 
     def to_dict(self) -> dict[str, object]:
+        from .transactions import correlate_urb_transactions
+
+        transactions, orphans = correlate_urb_transactions(self.transfers)
         return {
             "capture_id": self.capture_id,
             "transfer_count": len(self.transfers),
+            "urb_transaction_count": len(transactions),
+            "incomplete_urb_transaction_count": sum(not item.complete for item in transactions),
+            "orphan_urb_record_count": len(orphans),
             "live_transfer_count": len(self.live_transfers),
             "synthetic_transfer_count": len(self.synthetic_transfers),
             "devices": [d.to_dict() for d in self.devices],

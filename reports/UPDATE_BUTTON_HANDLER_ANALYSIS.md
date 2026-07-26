@@ -1,12 +1,12 @@
-# Update Button Handler Analysis
+# Update and Feedback Handler Analysis
 
-Date: 2026-07-25
+Date: 2026-07-26
 
-## Status: FIRST LIVE TRANSACTION VERIFIED; EXACT MFC MESSAGE-MAP SYMBOL STILL UNKNOWN
+## Status: static UI-to-worker edges recovered
 
-The official updater UI capture and the later isolated physical validation are
-documented separately. The following static findings are retained as the
-independent code-side evidence.
+This report is based on offline analysis of the private `Update.exe` only. No
+updater process was started, patched, or driven while producing these results.
+The handler names below are analyst labels, not vendor symbols.
 
 ## Dialog resource
 
@@ -20,49 +20,68 @@ PE resource dialog 102 is titled `Device upgrades` and contains:
 | Welcome/status text | 1001 | static | `Welcome to ANCEL's vehicle diagnostic tool !` |
 | Feedback | 1005 | static | `Feedback` |
 
-This identifies the user-visible control but does not by itself identify its
-message-map handler or prove that the handler reaches the first USB write.
+## Exact MFC command-map findings
 
-## Static request candidate
+The reusable private scanner (`tools/analyze_updater.py`) structurally recovers
+x86 MFC `WM_COMMAND` map records. Two records belong to the application dialog
+range and have notification code zero:
 
-The command-builder function at `0x0040E670` initializes a 16-byte frame,
-sets byte 2 to `0x0B`, clears bytes 3 through 14, and invokes the checksum
-builder at `0x0040EC70`. The resulting exact candidate is:
+| Record | Control | Handler | Callback submitted to worker launcher | Classification |
+|---|---:|---:|---:|---|
+| `Update.exe+0x008CBA68` | 1 (`Update`) | `0x0040CFB0` | `0x00410310` | STATIC_ANALYSIS_SUPPORTED |
+| `Update.exe+0x008CBA80` | 1005 (`Feedback`) | `0x0040D000` | `0x0040DB30` | STATIC_ANALYSIS_SUPPORTED |
 
+Both handlers pass their dialog instance and callback address to the same
+MFC worker-thread-launcher candidate at `0x00439380`. This is an exact code
+relationship: `0x0040CFDF` pushes `0x00410310` before the call, and
+`0x0040D02F` pushes `0x0040DB30` before the corresponding call. The precise
+vendor/MFC symbol name of `0x00439380` remains unneeded and is not claimed.
+
+## Recovered Update route
+
+The `Update` control therefore launches worker `0x00410310`. That worker:
+
+1. opens/enumerates the WinUSB device and reads its standard product ID;
+2. selects `bin\DM100\McuCode.bin` when `idProduct == 0x5265`;
+3. calls the dangerous transfer worker `0x00411330` with stage command `0x03`;
+4. after success, formats the `ExtFlashDat.bin` path and calls the same
+   worker with stage command `0x04`; and
+5. calls the worker once more with final interrupt command `0x02`.
+
+The calls are at `Update.exe+0x00410C25`, `+0x00410F10`, and `+0x00411002`.
+Only the command-`0x03` transfer has retained USBPcap evidence. Command `0x04`
+and final interrupt command `0x02` are **dangerous, unobserved stages**;
+their device effects and responses remain UNKNOWN and blocked from replay.
+
+The command-`0x03` capture's page count is `0x0047`, which equals the
+71 pages of the private DM100 artifact. Its first bulk payload exactly matches
+DM100 offset zero, as documented in
+[`UPDATER_STATE_MACHINE.md`](UPDATER_STATE_MACHINE.md).
+
+## Recovered Feedback route
+
+The separate `Feedback` control launches `0x0040DB30`. That worker is the
+independent static source of the observed read-shaped sequence:
+
+```text
+0x0B / 0x8B capacity -> 32 × (0x06 / 0x86 -> 0x82 logical 0x1008-byte read)
 ```
-55 AA 0B 00 00 00 00 00 00 00 00 00 00 00 00 0A
-```
 
-The final byte is consistent with the additive checksum over bytes 0 through
-14 (`0x55 + 0xAA + 0x0B = 0x10A`, low byte `0x0A`). This was initially static
-evidence only; the canonical updater capture and one physical validation later
-observed the same request/response bytes.
+It computes `capacity - 0x50000`, copies the 4096-byte post-transport portion
+of each validated bulk response into a host `Feedback.bin`, and never uses the
+dangerous bulk-OUT update endpoint in this path. Its live read-only semantics
+are still not independently established, so `0x06` remains blocked.
 
-The helper at `0x00410010` writes 16 bytes through pipe selector 1
-(`0x01` interrupt OUT) and reads 16 bytes through selector 0 (`0x81`
-interrupt IN). For command `0x0B`, the response discriminator is expected to
-be byte 2 `0x8B`; the caller decodes response bytes 3–6 as a little-endian
-value. These facts correlate with the canonical updater capture; the physical
-client validation is performed through the independent policy-gated adapter
-rather than by modifying or replaying the updater.
+## Corrected capture attribution
 
-## Live correlation
+The canonical first-vendor capture matches the **Feedback worker's** exact
+static protocol path. It must not be described as byte-level proof that the
+`Update` control itself sends `0x0B` or `0x06`: the recovered `Update` handler
+instead enters the dangerous update-worker route. The controller recorded an
+owner-approved updater interaction, but it did not record the precise UI
+control that initiated the captured read-shaped traffic. This correction
+removes an earlier unsupported UI attribution while preserving the verified
+capture bytes and worker relationships.
 
-The canonical first-updater capture independently observed the exact static
-`0x0B` frame on `0x01` and its `0x8B` response on `0x81`, followed by the
-static `0x06`/bulk-IN path. This proves that the captured worker path is
-reachable from the owner-approved Update action. The exact symbolic MFC
-message-map entry remains unresolved, but it is no longer necessary to infer
-the first transfer bytes.
-
-## Remaining proof
-
-The exact MFC message-map entry and complete call chain from dialog control ID
-1 remain UNKNOWN. The first live submit/completion pair is verified in
-`reports/HANDSHAKE_ANALYSIS.md`; the bounded passive capture controller is
-`scripts/capture_updater_first_vendor.ps1`.
-
-The exact symbolic MFC message-map entry remains UNKNOWN, but it is not needed
-for the first independent client transaction. The client promotes only the
-`0x0B` query as an explicit opt-in after capture, static, replay, and physical
-evidence; `0x06` and every update-stage path remain blocked.
+`0x0B` remains the only independently physical-validated opt-in query. Every
+`0x06` path and every update stage remains disabled in the client.

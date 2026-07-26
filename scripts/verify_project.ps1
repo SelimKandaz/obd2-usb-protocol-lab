@@ -29,6 +29,7 @@ try {
     Invoke-Checked $ruff @('check', 'src', 'tests')
     Invoke-Checked $python @('-m', 'mypy', 'src')
     Invoke-Checked $python @('-m', 'compileall', '-q', 'src', 'tests')
+    Invoke-Checked $python @('tools\validate_knowledge.py')
     if (-not $SkipBuild) {
         Invoke-Checked $python @('-m', 'build', '--wheel', '--no-isolation')
     }

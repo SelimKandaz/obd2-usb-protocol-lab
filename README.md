@@ -62,8 +62,9 @@ read-only WinUSB client — `vod700 descriptors`. Windows shows the serial as
 request/response exchange; `0x02/0x82` carries bulk data. Individual bulk
 payload meanings and the bulk OUT safety boundary remain separate questions.
 
-VID `0x0483` strongly implies an **STM32**-class MCU. This is context, not a
-claim about the application protocol.
+VID `0x0483` is registered to STMicroelectronics, but it does **not** identify
+the VOD700 MCU. The actual MCU, flash layout, and bootloader remain unknown
+until supported by board or firmware evidence.
 
 ---
 
@@ -82,6 +83,8 @@ vod700-protocol-lab/
 ├─ src/vod700/            # Python package (zero runtime dependencies)
 │  ├─ protocol/           # models, checksums, framing, parser
 │  ├─ capture/            # native pcapng + USBPcap decoder + exporters
+│  ├─ firmware/           # opaque-artifact and release-ZIP analysis only
+│  ├─ memory/             # disabled, capture-derived storage plans
 │  ├─ client/             # read-only WinUSB client (ctypes) + safety policy
 │  └─ mock/               # replay device + synthetic fixture builders
 ├─ scripts/               # read-only PowerShell discovery tools
@@ -115,6 +118,14 @@ Capture analysis (works offline; no tshark required):
 
 ```bash
 vod700 capture analyze private_samples/captures/handshake.pcapng
+vod700 capture transactions private_samples/captures/handshake.pcapng
+```
+
+Offline artifact/storage analysis (no device access):
+
+```bash
+vod700 firmware inspect private_samples/updater/bin/DM100/McuCode.bin --deep
+vod700 memory feedback-plan
 ```
 
 Offline OBD-II/ISO-TP decoding (no device or vehicle access):
@@ -141,18 +152,21 @@ the default command set sends no vendor-protocol bytes.
 See [`docs/PROTOCOL_STATUS.md`](docs/PROTOCOL_STATUS.md) and
 [`reports/VOD700_REVERSE_ENGINEERING_STATUS.md`](reports/VOD700_REVERSE_ENGINEERING_STATUS.md).
 
-The first updater transaction is reconstructed in
-`reports/VOD700_PROTOCOL_MILESTONE_6.md`. The private canonical capture proves
-the `0x0B`/`0x8B` and `0x06`/`0x86` interrupt exchanges, additive checksums,
-and preliminary bulk-IN reads. A separate private update-stage capture proves
-the dangerous `0x02` bulk-OUT path; it is not implemented for dispatch.
+The current consolidated status is
+[`reports/VOD700_REVERSE_ENGINEERING_STATUS.md`](reports/VOD700_REVERSE_ENGINEERING_STATUS.md).
+The private canonical capture proves the `0x0B`/`0x8B` and `0x06`/`0x86`
+interrupt exchanges, additive checksums, and bounded bulk-IN frames. A
+separate official-updater capture proves the dangerous `0x03`, `0x01`, and
+`0x02` update path; it is parser-only and never dispatchable. The full recovered
+worker graph is in `reports/UPDATER_STATE_MACHINE.md`.
 
-The independent client now has evidence-backed offline parsers/builders, a
-policy-gated transport state machine, and one physical validation of the
-`0x0B`/`0x8B` exchange. The dangerous `0x06`/bulk paths remain unimplemented
-for dispatch. `storage-query` is disabled by default and requires explicit
-approval on every invocation. A separate offline OBD-II codec is available for
-captured CAN/ISO-TP data; it is not connected to the VOD700 USB transport.
+The independent client now has evidence-backed offline parsers, capture
+transaction correlation, opaque-artifact tools, disabled storage plans, and a
+policy-gated transport state machine. The dangerous `0x06`/bulk paths remain
+unimplemented for dispatch. `storage-query` is disabled by default and
+requires explicit approval on every invocation. A separate offline OBD-II
+codec is available for captured CAN/ISO-TP data; it is not connected to the
+VOD700 USB transport.
 
 ## Legal & ethical
 

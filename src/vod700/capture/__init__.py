@@ -9,6 +9,12 @@ from __future__ import annotations
 
 from .analyze import CaptureAnalysis, analyze, analyze_bytes
 from .pcapng import RawPacket, read_packets
+from .transactions import (
+    FeedbackReadTransaction,
+    UrbTransaction,
+    correlate_feedback_reads,
+    correlate_urb_transactions,
+)
 from .usbpcap import LINKTYPE_USBPCAP, UsbpcapRecord, decode_usbpcap
 
 __all__ = [
@@ -20,4 +26,8 @@ __all__ = [
     "CaptureAnalysis",
     "analyze",
     "analyze_bytes",
+    "UrbTransaction",
+    "FeedbackReadTransaction",
+    "correlate_urb_transactions",
+    "correlate_feedback_reads",
 ]
