@@ -13,7 +13,7 @@ param(
     [string]$UpdaterPath = '',
     [string]$OutPath = '',
     [int]$UpdaterWaitSeconds = 90,
-    [int]$PostReadySeconds = 3
+    [int]$PostReadyMaxSeconds = 15
 )
 
 $ErrorActionPreference = 'Stop'
@@ -151,9 +151,21 @@ try {
     Write-Host "official updater detected=$($updater.ExecutablePath)"
     Start-Sleep -Seconds 3
     Write-Host ("READY " + [char]0x2014 + " CLICK UPDATE ONCE NOW")
-    Write-Host ("POST_READY_WINDOW " + [char]0x2014 + " observing for $PostReadySeconds seconds; do not click anything else.")
-    Start-Sleep -Seconds $PostReadySeconds
-    Write-Host ("POST_READY_COMPLETE " + [char]0x2014 + " containing updater and stopping capture.")
+    Write-Host ("POST_READY_WINDOW " + [char]0x2014 + " observing until the first USB record or $PostReadyMaxSeconds seconds; do not click anything else.")
+    $firstRecordDeadline = (Get-Date).AddSeconds($PostReadyMaxSeconds)
+    $firstRecordObserved = $false
+    while ((Get-Date) -lt $firstRecordDeadline) {
+        if ((Test-Path $OutPath) -and ((Get-Item -LiteralPath $OutPath).Length -gt 24)) {
+            $firstRecordObserved = $true
+            break
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    if ($firstRecordObserved) {
+        Write-Host ("FIRST_USB_RECORD_OBSERVED " + [char]0x2014 + " containing updater immediately.")
+    } else {
+        Write-Host ("POST_READY_TIMEOUT " + [char]0x2014 + " no USB record observed; containing updater.")
+    }
     try { $updater.CloseMainWindow() | Out-Null; Start-Sleep -Seconds 3 } catch { }
     if (-not $updater.HasExited) { try { Stop-Process -Id $updater.ProcessId -Force -ErrorAction SilentlyContinue } catch { } }
     $sink.Dispose()

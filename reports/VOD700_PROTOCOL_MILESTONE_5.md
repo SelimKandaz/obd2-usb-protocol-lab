@@ -15,7 +15,8 @@ reconnect baseline was not repeated or modified.
 - Added `scripts/capture_updater_first_vendor.ps1`, which dynamically selects
   the unique USBPcap WinUSB target, captures the complete root hub with
   injection disabled, waits for the official updater, requires one owner click,
-  observes a 3-second bounded post-click window, then contains the updater.
+  observes until the first USB record (maximum 15 seconds), then contains the
+  updater.
 - Confirmed the script parses successfully in Windows PowerShell.
 - Reconstructed dialog resource 102 statically: Update control ID 1,
   Exit control ID 2, progress ID 1000, status ID 1001, Feedback ID 1005.
