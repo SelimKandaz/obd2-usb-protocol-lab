@@ -1,8 +1,9 @@
 # Firmware / Update Container Format
 
-Status: **BLOCKED** — no updater or firmware sample is present on the research
-host. This document defines the *approach* so analysis can start the moment a
-sample is placed in `private_samples/firmware/`.
+Status: **STATIC ANALYSIS COMPLETE / EXECUTION BLOCKED**. Private updater
+containers are present locally and were inspected without execution. The
+result is recorded in `reports/FIRMWARE_CONTAINER_ANALYSIS.md`. No firmware
+image or `Erase.bin` is used by the client, sent to the device, or committed.
 
 ## Hard rules
 - **Static analysis only.** A firmware/update file is never sent to the device.
@@ -22,9 +23,9 @@ sample is placed in `private_samples/firmware/`.
 - bootloader vs. application separation
 
 ## Method
-1. `scripts\hash_updater_files.ps1 -Path private_samples\firmware` → inventory +
+1. Hash private samples with `scripts\hash_updater_files.ps1` → inventory +
    SHA-256 + PE arch + signatures for any bundled tools.
-2. Entropy scan (planned `tools/entropy.py`): sliding-window Shannon entropy to
+2. Entropy scan: sliding-window Shannon entropy to
    flag compressed/encrypted regions vs. plaintext headers.
 3. Magic/signature scan and `strings` over the container (never executed).
 4. Header diff across multiple official versions if more than one is available.

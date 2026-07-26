@@ -37,9 +37,11 @@ native analyzer.
 - close: `CloseMainWindow`, force-stop only after a 3-second grace period
 - destination: git-ignored `private_samples/captures/`
 
-## BLOCKED
+## Historical blocker resolution
 
-Direct capture requires elevated PowerShell. Two elevation launch attempts did
-not receive UAC approval before the caller timed out. No updater process
-appeared and no capture file was created. The next action is owner approval of
-the UAC prompt for this same bounded passive capture.
+The elevation/UAC blocker described in the original Phase 3 snapshot was
+resolved. The bounded controller subsequently produced the canonical private
+updater captures documented in `HANDSHAKE_ANALYSIS.md` and
+`UPDATE_STAGE_CAPTURE_ANALYSIS.md`. The capture backend remains passive-only;
+future scenarios must use a new output name and an independently approved
+scope.

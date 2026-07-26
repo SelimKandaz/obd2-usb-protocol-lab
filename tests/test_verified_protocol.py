@@ -5,6 +5,8 @@ from vod700.protocol.verified import (
     build_storage_query,
     classify_bulk_in,
     inspect_bulk_write,
+    parse_observed_request,
+    parse_observed_response,
     parse_request,
     parse_response,
 )
@@ -32,6 +34,17 @@ def test_captured_responses_and_checksums():
     block = parse_response(bytes.fromhex("aa558600000000000000000000000085"))
     assert (storage.command, storage.value_u32_le, storage.checksum) == (0x0B, 0x2000000, 0x8C)
     assert (block.command, block.value_u32_le, block.checksum) == (0x06, 0, 0x85)
+
+
+def test_observed_lens_preserve_unknown_command_bytes():
+    request = bytes.fromhex("55aa0500000000000000000000000004")
+    response = bytes.fromhex("aa550500000000000000000000000004")
+    observed_request = parse_observed_request(request)
+    observed_response = parse_observed_response(response)
+    assert observed_request.command == 0x05
+    assert observed_response.response_command == 0x05
+    assert observed_response.request_command is None
+    assert observed_response.raw == response
 
 
 def test_invalid_frame_is_rejected():

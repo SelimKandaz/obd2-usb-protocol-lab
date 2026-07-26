@@ -52,9 +52,9 @@ read-only client can talk to it without replacing anything.
 | `{dee824ef-729b-4a0e-9c14-b7117d33a817}` | vendor interface GUID #2             |
 | `{a5dcbf10-6530-11d2-901f-00c04fb951ed}` | generic `GUID_DEVINTERFACE_USB_DEVICE` |
 
-Both vendor GUIDs resolve to the same underlying device/endpoints. The official
-updater presumably opens one of the vendor GUIDs (to be confirmed by static
-analysis of the updater).
+Both vendor GUIDs resolve to the same underlying device/endpoints. Static
+analysis identifies `{F70242C7-FB25-443B-9E7E-A4260F373982}` as the GUID used by
+the official updater; the second GUID remains a Windows-created alternate path.
 
 ## Endpoints
 See [`USB_ENDPOINTS.md`](USB_ENDPOINTS.md).

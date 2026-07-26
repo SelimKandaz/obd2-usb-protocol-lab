@@ -326,6 +326,24 @@ class WinUsbDevice:
                 )
         return out
 
+    def require_pipe(self, pipe_id: int, pipe_type: str, max_packet_size: int) -> PipeInfo:  # pragma: no cover
+        """Return a matching pipe or fail before any vendor transfer.
+
+        Active callers use this as a final descriptor-level contract check so a
+        stale interface path or a device-mode change cannot silently redirect a
+        request to a different endpoint.
+        """
+        for info in self.pipes(0):
+            if (
+                info.pipe_id == pipe_id
+                and info.pipe_type == pipe_type
+                and info.max_packet_size == max_packet_size
+            ):
+                return info
+        raise WinUsbError(
+            f"required pipe 0x{pipe_id:02X}/{pipe_type}/{max_packet_size} was not found"
+        )
+
     def _pipe_transfer(self, pipe_id: int, buffer: ctypes.Array[ctypes.c_char], length: int,
                        timeout_ms: int, write: bool) -> bytes | int:  # pragma: no cover
         _require()
@@ -348,7 +366,15 @@ class WinUsbDevice:
                 raise WinUsbError(f"WinUsb pipe transfer failed: {ctypes.WinError(ctypes.get_last_error())}")
             wait = _kernel32.WaitForSingleObject(event, timeout_ms)
             if wait == _WAIT_TIMEOUT:
+                # Cancel and drain the overlapped operation before closing the
+                # event handle. Closing an event while WinUSB still owns a
+                # pending IRP can race with completion on slow devices.
                 _kernel32.CancelIoEx(self._file, byref(overlapped))
+                # The original timeout is the actionable error; cleanup
+                # failures are intentionally not allowed to mask it.
+                _ = _kernel32.GetOverlappedResult(
+                    self._file, byref(overlapped), byref(transferred), True
+                )
                 raise WinUsbError(f"WinUsb pipe transfer timed out after {timeout_ms} ms")
             if wait != _WAIT_OBJECT_0:
                 raise WinUsbError(f"WaitForSingleObject failed: {wait}")

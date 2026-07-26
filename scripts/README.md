@@ -1,7 +1,9 @@
 # scripts/ — read-only Windows discovery
 
-All scripts are **read-only**: they enumerate and report. None opens a device
-handle for I/O, changes settings, or installs anything. Run from the repo root:
+Discovery scripts are **read-only**: they enumerate and report. The bounded
+capture controllers may launch the official updater for passive observation,
+but never click update controls or send lab-generated vendor packets. No script
+installs drivers or changes device settings. Run from the repo root:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\<name>.ps1

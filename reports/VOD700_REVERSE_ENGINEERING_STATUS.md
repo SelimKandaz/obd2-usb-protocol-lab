@@ -1,6 +1,6 @@
 # VOD700 Reverse-Engineering — Current Project Status
 
-Date: 2026-07-25
+Date: 2026-07-26
 
 This is the current status of the independent, evidence-driven VOD700 USB
 client. Historical milestone reports retain the earlier snapshots; this file
@@ -61,6 +61,8 @@ unknown. The successful validation is documented in
 - Explicit `vod700 storage-query --approve-live` command for exactly one
   verified `0x0B`/`0x8B` transaction; default policy remains disabled
 - Offline OBD-II CAN/ISO-TP codecs with SAE J1979 PID, DTC, and VIN decoders
+- Machine-readable ESP32-oriented protocol knowledge base in
+  `knowledge/protocol_knowledge.json`
 - Wheel packaging and reproducible Windows/PowerShell workflows
 
 ## Deliberately not implemented
@@ -78,7 +80,7 @@ would violate the project's read-only safety boundary.
 
 ## Validation and artifact
 
-- `pytest`: 61 passed
+- `pytest`: 63 passed
 - Ruff: clean
 - mypy: clean (28 source files)
 - Python compilation: clean

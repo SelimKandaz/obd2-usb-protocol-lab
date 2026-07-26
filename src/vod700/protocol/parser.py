@@ -1,8 +1,8 @@
-"""Turn a stream of :class:`UsbTransfer` into tentatively-interpreted messages.
+"""Turn a stream of :class:`UsbTransfer` into evidence-tagged messages.
 
-Everything here is a hypothesis at LOW/UNKNOWN confidence. Roles are guessed
-purely from endpoint direction and the working channel hypothesis; no byte-level
-meaning is asserted. The value is structure + correlation, not conclusions.
+Endpoint roles are capture-verified for the VOD700 updater channel. Byte-level
+semantics still belong to :mod:`vod700.protocol.verified`; unknown payloads are
+kept intact rather than being assigned guessed fields.
 """
 from __future__ import annotations
 
@@ -20,9 +20,9 @@ from .models import (
     UsbTransfer,
 )
 
-# Working channel hypothesis (UNVERIFIED, from the project brief):
-#   0x01 OUT / 0x81 IN  interrupt  = command / status / ACK
-#   0x02 OUT / 0x82 IN  bulk       = data / file / firmware transfer
+# Capture-verified channel observations from the canonical updater fixture:
+#   0x01 OUT / 0x81 IN  interrupt  = request / response exchange
+#   0x02 OUT / 0x82 IN  bulk       = data exchange (read and dangerous write)
 COMMAND_OUT_EP = 0x01
 STATUS_IN_EP = 0x81
 BULK_OUT_EP = 0x02
@@ -32,11 +32,11 @@ BULK_IN_EP = 0x82
 def _guess_role(t: UsbTransfer) -> tuple[MessageRole, Confidence, str]:
     if t.transfer_type is TransferType.INTERRUPT:
         if t.endpoint == COMMAND_OUT_EP:
-            return MessageRole.COMMAND, Confidence.LOW, "OUT on interrupt cmd-channel (hypothesis)"
+            return MessageRole.COMMAND, Confidence.VERIFIED, "capture-verified request channel"
         if t.endpoint == STATUS_IN_EP:
-            return MessageRole.RESPONSE, Confidence.LOW, "IN on interrupt status-channel (hypothesis)"
+            return MessageRole.RESPONSE, Confidence.VERIFIED, "capture-verified response channel"
     if t.transfer_type is TransferType.BULK:
-        return MessageRole.DATA, Confidence.LOW, "bulk data-channel (hypothesis)"
+        return MessageRole.DATA, Confidence.HIGH, "capture-observed bulk data channel; semantics vary by direction"
     return MessageRole.UNKNOWN, Confidence.UNKNOWN, ""
 
 

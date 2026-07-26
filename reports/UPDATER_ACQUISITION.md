@@ -1,6 +1,11 @@
 # Updater Acquisition Report (Phase 2)
 
-Date: 2026-07-24. **Status: BLOCKED — official updater is behind an account sign-in.**
+Date: 2026-07-24 (historical acquisition snapshot).
+
+**Current status: RESOLVED.** The owner supplied the signed-in download under
+`private_samples/updater/`; the resulting inventory and static analysis are
+recorded in `UPDATER_EVIDENCE_MANIFEST.md` and `UPDATER_STATIC_ANALYSIS.md`.
+The historical portal-access blocker below is retained as provenance.
 
 ## Device identification (resolved)
 The device is the **ANCEL VOD700**, a multi-system OBD2 scanner. ANCEL is the

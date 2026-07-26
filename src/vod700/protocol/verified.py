@@ -58,18 +58,35 @@ def build_block_read(address: int, block_length: int = 0x10) -> bytes:
 
 
 @dataclass(frozen=True)
-class VerifiedRequest:
+class ObservedRequest:
     raw: bytes
     command: int
     checksum: int
+
+
+def parse_observed_request(frame: bytes) -> ObservedRequest:
+    """Validate framing/checksum while preserving any command byte.
+
+    This is the lossless capture-facing parser. It intentionally accepts
+    command bytes whose semantics are not yet known; callers that need an
+    evidence-backed command should use :func:`parse_request`.
+    """
+
+    raw = _check_frame(frame, REQUEST_MAGIC)
+    return ObservedRequest(raw=raw, command=raw[2], checksum=raw[CHECKSUM_OFFSET])
+
+
+@dataclass(frozen=True)
+class VerifiedRequest(ObservedRequest):
     address: int | None = None
     block_length: int | None = None
 
 
 def parse_request(frame: bytes) -> VerifiedRequest:
     """Parse a captured interrupt OUT request with verified framing/checksum."""
-    raw = _check_frame(frame, REQUEST_MAGIC)
-    command = raw[2]
+    observed = parse_observed_request(frame)
+    raw = observed.raw
+    command = observed.command
     if command not in (STORAGE_QUERY, BLOCK_READ):
         raise ValueError(f"unsupported evidence-backed request command 0x{command:02X}")
     if command == STORAGE_QUERY and any(raw[3:CHECKSUM_OFFSET]):
@@ -86,26 +103,48 @@ def parse_request(frame: bytes) -> VerifiedRequest:
 
 
 @dataclass(frozen=True)
-class VerifiedResponse:
+class ObservedResponse:
     raw: bytes
     response_command: int
-    command: int
     checksum: int
     value_u32_le: int
+
+    @property
+    def request_command(self) -> int | None:
+        """Return the request command for conventional ``0x80+cmd`` replies."""
+        return self.response_command - 0x80 if self.response_command >= 0x80 else None
+
+
+def parse_observed_response(frame: bytes) -> ObservedResponse:
+    """Validate response framing/checksum without assuming command semantics."""
+
+    raw = _check_frame(frame, RESPONSE_MAGIC)
+    return ObservedResponse(
+        raw=raw,
+        response_command=raw[2],
+        checksum=raw[CHECKSUM_OFFSET],
+        value_u32_le=int.from_bytes(raw[3:7], "little"),
+    )
+
+
+@dataclass(frozen=True)
+class VerifiedResponse(ObservedResponse):
+    command: int
 
 
 def parse_response(frame: bytes) -> VerifiedResponse:
     """Parse a captured interrupt IN response and its observed checksum."""
-    raw = _check_frame(frame, RESPONSE_MAGIC)
-    response_command = raw[2]
+    observed = parse_observed_response(frame)
+    raw = observed.raw
+    response_command = observed.response_command
     if response_command not in (STORAGE_QUERY + 0x80, BLOCK_READ + 0x80):
         raise ValueError(f"unsupported evidence-backed response 0x{response_command:02X}")
     return VerifiedResponse(
         raw=raw,
         response_command=response_command,
+        checksum=observed.checksum,
+        value_u32_le=observed.value_u32_le,
         command=response_command - 0x80,
-        checksum=raw[CHECKSUM_OFFSET],
-        value_u32_le=int.from_bytes(raw[3:7], "little"),
     )
 
 

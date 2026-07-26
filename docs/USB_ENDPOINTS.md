@@ -12,17 +12,18 @@ WinUSB pipe enumeration dump, and live via `WinUsb_QueryPipe`
 | 2    | `0x82`  | IN  | Bulk       | 64         | 32       |
 | 3    | `0x02`  | OUT | Bulk       | 64         | 32       |
 
-## Working channel hypothesis (UNVERIFIED)
+## Channel roles from capture evidence
 
-| Channel                 | Hypothesized role                     | Confidence |
+| Channel                 | Observed role                          | Confidence |
 |-------------------------|---------------------------------------|------------|
-| `0x01` OUT / `0x81` IN  | command / status / ACK (interrupt)    | LOW        |
-| `0x02` OUT / `0x82` IN  | data / file / firmware (bulk)         | LOW        |
+| `0x01` OUT / `0x81` IN  | request / response exchange (interrupt) | VERIFIED |
+| `0x02` OUT / `0x82` IN  | bulk data exchange                      | HIGH     |
 
-This is only a hypothesis based on the classic "small interrupt control channel
-+ large bulk data channel" split. It must be confirmed against captured traffic
-before any code relies on it. The `vod700 capture analyze` tool groups traffic
-by exactly these endpoints to make the confirmation straightforward.
+The channel roles above are observed in the genuine updater captures. The
+semantic meaning of individual bulk payloads and the safety of the bulk OUT
+path are not inferred from the role alone: the observed bulk OUT is explicitly
+dangerous and remains blocked. The `vod700 capture analyze` tool preserves the
+raw endpoint timelines for independent review.
 
 ## Practical implications for parsing
 - Interrupt frames are bounded at **16 bytes** → a single command/response very

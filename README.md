@@ -58,8 +58,9 @@ Source: local Windows PnP/WinUSB enumeration (`docs/DEVICE_PROFILE.md`,
 read-only WinUSB client — `vod700 descriptors`. Windows shows the serial as
 `Autophix_DM` in instance IDs because spaces are not allowed there.)*
 
-**Working hypothesis (UNVERIFIED):** `0x01/0x81` interrupt = command/status/ACK;
-`0x02/0x82` bulk = data/file/firmware transfer. Must be confirmed from capture.
+**Capture-verified channel roles:** `0x01/0x81` interrupt carries the updater's
+request/response exchange; `0x02/0x82` carries bulk data. Individual bulk
+payload meanings and the bulk OUT safety boundary remain separate questions.
 
 VID `0x0483` strongly implies an **STM32**-class MCU. This is context, not a
 claim about the application protocol.
@@ -71,6 +72,10 @@ claim about the application protocol.
 The package also contains `src/vod700/obd2/`, an offline-only CAN/ISO-TP and
 SAE J1979 decoder. It is intentionally not connected to the VOD700 USB or a
 vehicle.
+
+The machine-readable protocol record is maintained in
+[`knowledge/protocol_knowledge.json`](knowledge/protocol_knowledge.json), with
+the authoring rules in [`knowledge/README.md`](knowledge/README.md).
 
 ```
 vod700-protocol-lab/

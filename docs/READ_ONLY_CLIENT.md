@@ -16,10 +16,11 @@ construction.
 | `vod700 storage-query --approve-live` | one verified `0x0B`/`0x8B` exchange | explicit opt-in |
 | `vod700` transaction module | replay/mock validation of captured bytes | local only |
 
-These issue only **standard** USB requests (the same ones enumeration already
-performs) or touch no device at all. The low-level pipe bindings exist only
-behind the policy-gated transaction adapter and are never reached by the
-default commands.
+The default commands issue only **standard** USB requests (the same ones
+enumeration already performs) or touch no device at all. The opt-in
+`storage-query` is the sole vendor-protocol exception and is bounded to one
+verified 16-byte exchange. Low-level pipe bindings exist only behind the
+policy-gated transaction adapter.
 
 ## What is gated (refused until explicitly approved)
 
@@ -51,6 +52,9 @@ capture, static analysis, and one physical exchange. The policy entry is
 classified `READ_ONLY` but remains disabled by default. The command-line
 `storage-query` path temporarily enables it only after the caller supplies
 `--approve-live`, then restores the disabled state before exit.
+
+The complete byte/evidence/safety record is maintained in
+`knowledge/protocol_knowledge.json`.
 
 ## Implementation notes
 - Enumeration uses `SetupDiGetClassDevs` on the vendor interface GUIDs, with the

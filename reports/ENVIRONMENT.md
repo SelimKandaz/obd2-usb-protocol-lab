@@ -1,58 +1,38 @@
-# Environment Report (Phase 1)
+# Environment Report
 
-Research host inventory. Host username and machine-specific paths are redacted.
+Current repository evidence snapshot: 2026-07-26.
 
-## Operating system & shells
-| Item                | Value                                        | Confidence |
-|---------------------|----------------------------------------------|------------|
-| OS                  | Windows 11 Home, 10.0.26200 (build 26200)    | VERIFIED   |
-| Architecture        | 64-bit                                        | VERIFIED   |
-| PowerShell          | 5.1.26100.8894 (Desktop edition)              | VERIFIED   |
-| .NET Framework      | 4.8.09221 (release 533509)                    | VERIFIED   |
-| .NET SDK / runtimes | SDK 9.0.316; runtimes 3.1.32, 8.0.29, 9.0.18  | VERIFIED   |
+## Host and toolchain
 
-## Toolchain present
-| Tool     | Version / path (redacted)                | Notes                         |
-|----------|------------------------------------------|-------------------------------|
-| Python   | 3.14.3 default; also 3.13/3.12/3.11/3.9   | project venv built on 3.13    |
-| pip      | present                                   |                               |
-| git      | 2.53.0.windows.2                          |                               |
-| Nmap     | `C:\Program Files (x86)\Nmap`             | pulled in Npcap               |
-| Npcap    | `C:\Program Files\Npcap` (driver running) | **network only — not USB**    |
+The research host is Windows 11 x64 with PowerShell 5.1 and multiple Python
+versions. The project virtual environment is the reproducible execution target
+for the package and test suite. Git, Python, pytest, Ruff, mypy, and wheel
+build tooling are available in the repository workflow.
 
-## Capture tooling — MISSING (blocker for Phase 4)
-| Tool      | State          |
-|-----------|----------------|
-| Wireshark | not installed  |
-| tshark    | not installed  |
-| dumpcap   | not installed  |
-| USBPcap   | not installed  |
-| 7-Zip     | not on PATH    |
+## USB capture tooling
 
-> Npcap being installed is misleading: it captures **network** interfaces only.
-> USB capture requires **USBPcap** (bundled optionally with Wireshark).
+- Wireshark/tshark/dumpcap 4.6.7: installed and used during capture work
+- USBPcapCMD and the USBPcap kernel component: installed and used
+- Verified capture control device: `\\.\USBPcap1`
+- USBPcap device addresses are dynamic and must be discovered per session
+- The native analyzer consumes classic PCAP/PCAPNG without requiring tshark
 
-## VOD700 device — PRESENT
-| Item             | Value                                         |
-|------------------|-----------------------------------------------|
-| Status           | OK, present                                    |
-| Instance ID      | `USB\VID_0483&PID_5265\AUTOPHIX_DM`           |
-| Service / driver | `WINUSB` / `winusb.inf` (Microsoft 10.0.26100.8875) |
-| USB address      | 9 (changes on reconnect)                       |
+The original capture-installation blocker is historical. The canonical private
+captures are already present and must not be repeated merely to refresh this
+report.
 
-Full device facts: [`../docs/DEVICE_PROFILE.md`](../docs/DEVICE_PROFILE.md).
+## Device
 
-## Official updater — NOT FOUND
-No ANCEL/Autophix/VOD700 updater is installed (no registry uninstall entry) and
-no matching executable/installer was found under the user profile. Phases 2–3
-(updater static analysis) are blocked until the updater is placed in
-`private_samples/updater/`.
+- PnP instance: `USB\VID_0483&PID_5265\AUTOPHIX_DM`
+- Service: Microsoft `WINUSB` / `winusb.inf`
+- Product: `Automotive Diagnostic Device`
+- Address: dynamic; canonical updater capture used bus 1/address 6
 
-## Source evidence already on host (pre-existing)
-Two text dumps on the host Desktop were the basis of the initial endpoint/PnP
-data and have been independently re-verified live:
-- an endpoint probe dump (interface/pipe listing)
-- a `pnputil` device dump
+See `docs/DEVICE_PROFILE.md` and `docs/USB_ENDPOINTS.md` for the verified
+descriptor facts.
 
-Their contents are captured (redacted) in `docs/DEVICE_PROFILE.md` and
-`docs/USB_ENDPOINTS.md`.
+## Private samples
+
+The official updater and its private containers exist under
+`private_samples/updater/`. They are ignored by Git. Firmware/update images
+remain static-analysis-only and are never executed, transmitted, or committed.

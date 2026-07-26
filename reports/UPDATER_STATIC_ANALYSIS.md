@@ -5,7 +5,9 @@ Date: 2026-07-24
 Analyzed artifact SHA-256:
 `F705FB6C6276FA52F75DD88269408D5CF061048F5EEB5451212EB1986D862C4D`
 
-This report was completed before the first execution of `Update.exe`.
+This report was completed before the first execution of `Update.exe`. The
+static conclusions were later correlated with the canonical passive capture and
+one physical `0x0B` validation; see `VOD700_PROTOCOL_MILESTONE_7.md`.
 
 ## VERIFIED STATICALLY — PE and technology
 
@@ -124,4 +126,6 @@ safe. They remain blocked pending passive capture correlation.
 - device-information/version request bytes
 - protocol behavior on the live VOD700
 
-No command is promoted in the safety policy from static evidence alone.
+No command is promoted in the safety policy from static evidence alone. The
+current policy promotes only the `0x0B` storage query as an explicit opt-in
+after the independent physical validation documented in the later milestone.

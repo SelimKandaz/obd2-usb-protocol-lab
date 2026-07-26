@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "protocol": "VOD700-USB-v1",
+  "updated": "2026-07-26",
+  "confidence_legend": {
+    "PHYSICAL_VERIFIED": "Observed in a controlled exchange with the physical VOD700.",
+    "CAPTURE_VERIFIED": "Observed in a genuine USBPcap capture.",
+    "STATIC_CORRELATED": "Derived from updater code and independently matched to capture bytes.",
+    "HYPOTHESIS": "Useful working interpretation; not safe to implement as fact.",
+    "UNKNOWN": "No supported interpretation is available."
+  },
+  "device": {
+    "vid": "0x0483",
+    "pid": "0x5265",
+    "revision": "0x0200",
+    "manufacturer": "Autophix",
+    "product": "Automotive Diagnostic Device",
+    "driver": "Microsoft WinUSB",
+    "interface": {
+      "number": 0,
+      "class": "0xFF",
+      "subclass": "0xFF",
+      "protocol": "0x00"
+    }
+  },
+  "endpoints": [
+    {"address": "0x01", "direction": "OUT", "transfer": "interrupt", "max_packet": 16, "interval": 1},
+    {"address": "0x81", "direction": "IN", "transfer": "interrupt", "max_packet": 16, "interval": 1},
+    {"address": "0x02", "direction": "OUT", "transfer": "bulk", "max_packet": 64, "interval": 32},
+    {"address": "0x82", "direction": "IN", "transfer": "bulk", "max_packet": 64, "interval": 32}
+  ],
+  "interrupt_frame": {
+    "length": 16,
+    "request_magic": "55AA",
+    "response_magic": "AA55",
+    "command_offset": 2,
+    "checksum": {
+      "kind": "additive_sum8",
+      "covers_offsets": [0, 14],
+      "stored_offset": 15,
+      "formula": "frame[15] = sum(frame[0:15]) & 0xFF"
+    },
+    "response_command_rule": "known successful replies use request_command + 0x80",
+    "evidence": ["updater_first_vendor.pcapng", "Update.exe+0x0040EC70"]
+  },
+  "commands": [
+    {
+      "command": "0x0B",
+      "name": "storage_query",
+      "request_hex": "55aa0b0000000000000000000000000a",
+      "response_hex": "aa558b0000000200000000000000008c",
+      "response_command": "0x8B",
+      "response_value_u32_le": "0x02000000",
+      "endpoint_out": "0x01",
+      "endpoint_in": "0x81",
+      "max_response_length": 16,
+      "timeout_ms": 1000,
+      "checksum": "SUM8",
+      "confidence": "PHYSICAL_VERIFIED",
+      "static_references": ["Update.exe+0x0040E670", "Update.exe+0x00410010", "Update.exe+0x0040EC70"],
+      "capture_references": ["updater_first_vendor.pcapng#0-3"],
+      "safety": "READ_ONLY_OPT_IN",
+      "semantic_meaning": "capacity/size query is strongly supported; exact device-state semantics remain MEDIUM"
+    },
+    {
+      "command": "0x06",
+      "name": "addressed_block_read_candidate",
+      "request_layout": {
+        "magic": "55AA",
+        "command_offset": 2,
+        "address_offset": 3,
+        "address_width": 4,
+        "address_endian": "little",
+        "reserved_offset": 7,
+        "block_length_offset": 8,
+        "block_length_observed": "0x10",
+        "checksum_offset": 15
+      },
+      "response_command": "0x86",
+      "endpoint_out": "0x01",
+      "endpoint_in": "0x81",
+      "confidence": "CAPTURE_VERIFIED",
+      "static_references": ["Update.exe+0x00400DB30", "Update.exe+0x00410010"],
+      "capture_references": ["updater_first_vendor.pcapng#4-21"],
+      "safety": "BLOCKED",
+      "semantic_meaning": "addressed read/update-adjacent behavior; not safe to dispatch"
+    }
+  ],
+  "unknown_observations": [
+    {
+      "response_command": "0x05",
+      "frame_length": 16,
+      "checksum": "validly framed in the diagnostic observation, raw bytes not retained",
+      "confidence": "UNKNOWN",
+      "meaning": "unclassified state/status response; do not treat as NACK or success"
+    }
+  ],
+  "static_command_candidates": [
+    {
+      "command": "0x03",
+      "evidence": "special 20-second timeout path in Update.exe",
+      "confidence": "LOW",
+      "request_bytes": "UNKNOWN",
+      "safety": "BLOCKED"
+    },
+    {
+      "command": "0x07",
+      "evidence": "non-PID-0x5265 device-family branch",
+      "confidence": "LOW",
+      "request_bytes": "PARTIAL",
+      "safety": "BLOCKED"
+    },
+    {
+      "command": "0x0A",
+      "evidence": "special 120-second timeout path in Update.exe",
+      "confidence": "LOW",
+      "request_bytes": "UNKNOWN",
+      "safety": "BLOCKED"
+    }
+  ],
+  "bulk_observations": [
+    {
+      "endpoint": "0x82",
+      "length": 4096,
+      "prefix": "AA55AA55",
+      "fill": "FF",
+      "confidence": "CAPTURE_VERIFIED",
+      "meaning": "unknown data pattern"
+    },
+    {
+      "endpoint": "0x82",
+      "length": 8,
+      "bytes": "FFFFFFFF000FF1FE",
+      "confidence": "CAPTURE_VERIFIED",
+      "meaning": "unknown trailer pattern"
+    },
+    {
+      "endpoint": "0x02",
+      "length": 4104,
+      "prefix": "55AA55AA",
+      "trailing_checksum": "SUM32 big-endian over preceding bytes",
+      "confidence": "CAPTURE_VERIFIED",
+      "safety": "DANGEROUS_BLOCKED"
+    }
+  ],
+  "esp32_reproduction_boundary": {
+    "implement_now": [
+      "16-byte interrupt framing",
+      "SUM8 calculation",
+      "0x0B request/0x8B response fixture behavior",
+      "endpoint and timeout model",
+      "offline replay and parser tests"
+    ],
+    "do_not_implement_from_this_file": [
+      "0x06 transmission",
+      "0x02 bulk OUT firmware writes",
+      "erase/recovery/update state transitions",
+      "ECU/OBD2 live commands",
+      "unknown response semantics"
+    ]
+  }
+}

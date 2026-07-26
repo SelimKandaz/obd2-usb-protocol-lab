@@ -4,8 +4,9 @@ Date: 2026-07-25
 
 ## Status: FIRST LIVE TRANSACTION VERIFIED; EXACT MFC MESSAGE-MAP SYMBOL STILL UNKNOWN
 
-No updater UI was clicked and no project-generated USB request was sent. The
-following findings are read-only analysis of the official `Update.exe`.
+The official updater UI capture and the later isolated physical validation are
+documented separately. The following static findings are retained as the
+independent code-side evidence.
 
 ## Dialog resource
 
@@ -33,14 +34,17 @@ builder at `0x0040EC70`. The resulting exact candidate is:
 ```
 
 The final byte is consistent with the additive checksum over bytes 0 through
-14 (`0x55 + 0xAA + 0x0B = 0x10A`, low byte `0x0A`). This is static evidence
-only; it has not been observed on USB and must not be transmitted.
+14 (`0x55 + 0xAA + 0x0B = 0x10A`, low byte `0x0A`). This was initially static
+evidence only; the canonical updater capture and one physical validation later
+observed the same request/response bytes.
 
 The helper at `0x00410010` writes 16 bytes through pipe selector 1
 (`0x01` interrupt OUT) and reads 16 bytes through selector 0 (`0x81`
 interrupt IN). For command `0x0B`, the response discriminator is expected to
 be byte 2 `0x8B`; the caller decodes response bytes 3–6 as a little-endian
-value. These facts remain uncorrelated with a live Update-button capture.
+value. These facts correlate with the canonical updater capture; the physical
+client validation is performed through the independent policy-gated adapter
+rather than by modifying or replaying the updater.
 
 ## Live correlation
 
@@ -58,6 +62,7 @@ The exact MFC message-map entry and complete call chain from dialog control ID
 `reports/HANDSHAKE_ANALYSIS.md`; the bounded passive capture controller is
 `scripts/capture_updater_first_vendor.ps1`.
 
-Until a live capture independently matches the static candidate (or another
-static/runtime pair reaches HIGH confidence), no read-only command is enabled
-in the client policy.
+The exact symbolic MFC message-map entry remains UNKNOWN, but it is not needed
+for the first independent client transaction. The client promotes only the
+`0x0B` query as an explicit opt-in after capture, static, replay, and physical
+evidence; `0x06` and every update-stage path remain blocked.
