@@ -136,6 +136,8 @@ def _cmd_storage_query(args: argparse.Namespace) -> int:
             print("No VOD700 WinUSB interface paths found.", file=sys.stderr)
             return 1
         with winusb.WinUsbDevice(paths[0]) as device:
+            device.require_pipe(0x01, "INTERRUPT", 16)
+            device.require_pipe(0x81, "INTERRUPT", 16)
             result = transaction.run_storage_query(transaction.WinUsbPipeTransport(device))
     except (winusb.WinUsbError, transaction.TransactionError, policy.PolicyError) as exc:
         print(f"storage-query failed: {exc}", file=sys.stderr)
