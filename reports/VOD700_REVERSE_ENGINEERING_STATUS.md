@@ -84,7 +84,7 @@ would violate the project's read-only safety boundary.
 - Python compilation: clean
 - Wheel build: successful (`dist/vod700-0.1.0-py3-none-any.whl`)
 - Worktree: clean
-- Final commit: `fea576c71761adf358cdd4d23f3a886ff5d45265`
+- Final validation commit: use `git rev-parse HEAD` (the worktree is clean)
 
 The project is complete for the verified, read-only USB scope. The unknown
 update/ECU protocol surface is explicitly blocked rather than fabricated.
