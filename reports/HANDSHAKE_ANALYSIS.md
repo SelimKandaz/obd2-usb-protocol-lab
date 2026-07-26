@@ -4,9 +4,9 @@ Date: 2026-07-25
 
 ## Capture identity
 
-- Raw USBPcap PCAP: `private_samples/captures/updater_first_vendor.pcap`
+- Raw USBPcap PCAP: `private_samples/captures/updater_first_vendor_preliminary.pcap`
 - Raw size: 9,290 bytes
-- Raw SHA-256: `29212D848F692B685E2C9CA24ADD6CCDE3D8FA99762558550A7D5B1EBFF8CE77`
+- Raw SHA-256: `3A671D25DFD6CF88B2D1421911EA0F4586B04D7B2B341D929EE6B5DAC5A3664E`
 - Canonical PCAPNG: `private_samples/captures/updater_first_vendor.pcapng`
 - Canonical size: 9,748 bytes
 - Canonical SHA-256: `5475B9B6C40413BB97C791C15CF286503626AEC64D90BD831CA3B1D278A8B731`
@@ -15,6 +15,11 @@ Date: 2026-07-25
 - Bus: `1`
 - Capture duration: 0.082173 seconds
 - Records: 22, all genuine live URBs; no synthetic descriptor records
+
+The working path `private_samples/captures/updater_first_vendor.pcap` is now
+reserved for the later update-stage attempt; the preliminary canonical fixture
+is the explicitly named `updater_first_vendor.pcapng` (and the regenerated
+private PCAP above).
 
 The reconnect baseline was not repeated. The capture contains only the
 dynamically assigned VOD700 address and no endpoint-0 enumeration records.
