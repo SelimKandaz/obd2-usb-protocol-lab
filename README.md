@@ -68,6 +68,10 @@ claim about the application protocol.
 
 ## Repository layout
 
+The package also contains `src/vod700/obd2/`, an offline-only CAN/ISO-TP and
+SAE J1979 decoder. It is intentionally not connected to the VOD700 USB or a
+vehicle.
+
 ```
 vod700-protocol-lab/
 ├─ src/vod700/            # Python package (zero runtime dependencies)
