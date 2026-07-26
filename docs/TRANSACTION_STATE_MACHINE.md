@@ -19,3 +19,7 @@ not proven harmless and the official updater proceeds into update-state logic.
 The `0x06` block-read and `0x02` bulk-write paths are deliberately not exposed
 as active state-machine operations. The latter is classified dangerous and has
 no builder. This module does not send bytes to a physical device.
+
+`WinUsbPipeTransport` and the low-level overlapped WinUSB pipe methods are
+implemented, but policy remains the only dispatch gate. Descriptor probing does
+not call them, and no live vendor request has been authorized in this project.

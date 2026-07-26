@@ -6,10 +6,11 @@ Exposes exactly the calls needed to *observe* the device:
   * WinUsb_GetDescriptor (device / configuration / string)  -- standard reads
   * WinUsb_QueryInterfaceSettings / WinUsb_QueryPipe        -- endpoint map
 
-There is deliberately **no** WinUsb_WritePipe and **no** WinUsb_ReadPipe binding
-in this module. Sending or soliciting vendor traffic is a separate, gated step
-(see :mod:`vod700.client.policy`). Importing this module never fails: if WinUSB
-is unavailable, ``WINUSB_AVAILABLE`` is ``False`` and calls raise cleanly.
+WinUsb_WritePipe and WinUsb_ReadPipe are bound only for the separate,
+policy-gated transaction adapter. The descriptor/probe path never calls them;
+the policy layer must authorize every vendor transaction. Importing this
+module never fails: if WinUSB is unavailable, ``WINUSB_AVAILABLE`` is ``False``
+and calls raise cleanly.
 """
 from __future__ import annotations
 
@@ -101,6 +102,15 @@ if WINUSB_AVAILABLE:  # pragma: no cover - requires Windows + device
             ("Interval", c_ubyte),
         ]
 
+    class OVERLAPPED(ctypes.Structure):
+        _fields_ = [
+            ("Internal", ctypes.c_void_p),
+            ("InternalHigh", ctypes.c_void_p),
+            ("Offset", wintypes.DWORD),
+            ("OffsetHigh", wintypes.DWORD),
+            ("hEvent", wintypes.HANDLE),
+        ]
+
     _setupapi.SetupDiGetClassDevsW.argtypes = [
         POINTER(GUID), wintypes.LPCWSTR, wintypes.HWND, wintypes.DWORD
     ]
@@ -141,8 +151,29 @@ if WINUSB_AVAILABLE:  # pragma: no cover - requires Windows + device
         c_void_p, c_ubyte, c_ubyte, POINTER(WINUSB_PIPE_INFORMATION)
     ]
     _winusb.WinUsb_QueryPipe.restype = wintypes.BOOL
+    _winusb.WinUsb_WritePipe.argtypes = [
+        c_void_p, c_ubyte, c_void_p, wintypes.ULONG, POINTER(wintypes.ULONG), POINTER(OVERLAPPED)
+    ]
+    _winusb.WinUsb_WritePipe.restype = wintypes.BOOL
+    _winusb.WinUsb_ReadPipe.argtypes = [
+        c_void_p, c_ubyte, c_void_p, wintypes.ULONG, POINTER(wintypes.ULONG), POINTER(OVERLAPPED)
+    ]
+    _winusb.WinUsb_ReadPipe.restype = wintypes.BOOL
+    _kernel32.CreateEventW.argtypes = [c_void_p, wintypes.BOOL, wintypes.BOOL, wintypes.LPCWSTR]
+    _kernel32.CreateEventW.restype = wintypes.HANDLE
+    _kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    _kernel32.WaitForSingleObject.restype = wintypes.DWORD
+    _kernel32.GetOverlappedResult.argtypes = [
+        wintypes.HANDLE, POINTER(OVERLAPPED), POINTER(wintypes.DWORD), wintypes.BOOL
+    ]
+    _kernel32.GetOverlappedResult.restype = wintypes.BOOL
+    _kernel32.CancelIoEx.argtypes = [wintypes.HANDLE, POINTER(OVERLAPPED)]
+    _kernel32.CancelIoEx.restype = wintypes.BOOL
 
     _PIPE_TYPES = {0: "CONTROL", 1: "ISOCHRONOUS", 2: "BULK", 3: "INTERRUPT"}
+    _ERROR_IO_PENDING = 997
+    _WAIT_OBJECT_0 = 0
+    _WAIT_TIMEOUT = 258
 
 
 def _require() -> None:
@@ -294,3 +325,49 @@ class WinUsbDevice:
                     )
                 )
         return out
+
+    def _pipe_transfer(self, pipe_id: int, buffer: ctypes.Array[ctypes.c_char], length: int,
+                       timeout_ms: int, write: bool) -> bytes | int:  # pragma: no cover
+        _require()
+        if self._file is None or not self._handle:
+            raise WinUsbError("device is not open")
+        if not 0 <= pipe_id <= 0xFF:
+            raise ValueError("pipe_id must fit in one byte")
+        if timeout_ms <= 0:
+            raise ValueError("timeout_ms must be positive")
+        event = _kernel32.CreateEventW(None, True, False, None)
+        if not event:
+            raise WinUsbError(f"CreateEventW failed: {ctypes.WinError(ctypes.get_last_error())}")
+        overlapped = OVERLAPPED()
+        overlapped.hEvent = event
+        transferred = wintypes.ULONG(0)
+        try:
+            fn = _winusb.WinUsb_WritePipe if write else _winusb.WinUsb_ReadPipe
+            ok = fn(self._handle, pipe_id, buffer, length, byref(transferred), byref(overlapped))
+            if not ok and ctypes.get_last_error() != _ERROR_IO_PENDING:
+                raise WinUsbError(f"WinUsb pipe transfer failed: {ctypes.WinError(ctypes.get_last_error())}")
+            wait = _kernel32.WaitForSingleObject(event, timeout_ms)
+            if wait == _WAIT_TIMEOUT:
+                _kernel32.CancelIoEx(self._file, byref(overlapped))
+                raise WinUsbError(f"WinUsb pipe transfer timed out after {timeout_ms} ms")
+            if wait != _WAIT_OBJECT_0:
+                raise WinUsbError(f"WaitForSingleObject failed: {wait}")
+            if not _kernel32.GetOverlappedResult(self._file, byref(overlapped), byref(transferred), True):
+                raise WinUsbError(f"GetOverlappedResult failed: {ctypes.WinError(ctypes.get_last_error())}")
+            if write:
+                return int(transferred.value)
+            return bytes(buffer.raw[: transferred.value])
+        finally:
+            _kernel32.CloseHandle(event)
+
+    def write_pipe(self, pipe_id: int, data: bytes, timeout_ms: int = 1000) -> int:  # pragma: no cover
+        """Low-level vendor write; call only through the policy-gated adapter."""
+        buf = create_string_buffer(data, len(data))
+        return int(self._pipe_transfer(pipe_id, buf, len(data), timeout_ms, True))
+
+    def read_pipe(self, pipe_id: int, max_length: int = 4096, timeout_ms: int = 1000) -> bytes:  # pragma: no cover
+        """Low-level vendor read; call only through the policy-gated adapter."""
+        if max_length <= 0:
+            raise ValueError("max_length must be positive")
+        buf = create_string_buffer(max_length)
+        return bytes(self._pipe_transfer(pipe_id, buf, max_length, timeout_ms, False))

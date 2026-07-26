@@ -20,6 +20,21 @@ class PipeTransport(Protocol):
     def read(self, endpoint: int, max_len: int, timeout_s: float) -> bytes: ...
 
 
+class WinUsbPipeTransport:
+    """Adapt an opened WinUSB device to the policy-gated transaction API."""
+
+    def __init__(self, device: object) -> None:
+        self.device = device
+
+    def write(self, endpoint: int, data: bytes) -> int:
+        return int(self.device.write_pipe(endpoint, data, timeout_ms=1000))  # type: ignore[attr-defined]
+
+    def read(self, endpoint: int, max_len: int, timeout_s: float) -> bytes:
+        return bytes(
+            self.device.read_pipe(endpoint, max_len, timeout_ms=max(1, int(timeout_s * 1000)))  # type: ignore[attr-defined]
+        )
+
+
 class TransactionError(RuntimeError):
     """Raised when a gated transaction does not complete or validate."""
 
