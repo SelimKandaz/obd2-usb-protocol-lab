@@ -60,6 +60,7 @@ unknown. The successful validation is documented in
 - Overlapped WinUSB pipe adapter with a policy gate
 - Explicit `vod700 storage-query --approve-live` command for exactly one
   verified `0x0B`/`0x8B` transaction; default policy remains disabled
+- Offline OBD-II CAN/ISO-TP codecs with SAE J1979 PID, DTC, and VIN decoders
 - Wheel packaging and reproducible Windows/PowerShell workflows
 
 ## Deliberately not implemented
@@ -68,7 +69,8 @@ unknown. The successful validation is documented in
   offline
 - Any `0x02` bulk OUT, firmware, erase, flash, recover, or update operation
 - Guessed identify/version commands: no distinct evidence-backed bytes exist
-- ECU/OBD2 diagnostic commands, DTC clearing, vehicle connection, or ECU writes
+- Live ECU/OBD2 diagnostic commands, DTC clearing, vehicle connection, or ECU
+  writes
 
 These are not missing coding tasks that can be completed honestly from the
 current evidence. Implementing them would require unknown protocol bytes or
@@ -76,13 +78,13 @@ would violate the project's read-only safety boundary.
 
 ## Validation and artifact
 
-- `pytest`: 54 passed
+- `pytest`: 61 passed
 - Ruff: clean
-- mypy: clean (24 source files)
+- mypy: clean (28 source files)
 - Python compilation: clean
 - Wheel build: successful (`dist/vod700-0.1.0-py3-none-any.whl`)
 - Worktree: clean
-- Final commit: `594581c083d070a5ec217fa0627816c4384e1820`
+- Final commit: `fea576c71761adf358cdd4d23f3a886ff5d45265`
 
 The project is complete for the verified, read-only USB scope. The unknown
 update/ECU protocol surface is explicitly blocked rather than fabricated.
