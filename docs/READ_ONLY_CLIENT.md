@@ -4,7 +4,7 @@ An independent client that talks to the VOD700 through the **existing Microsoft
 WinUSB driver** (no Zadig, no driver replacement). It is read-only by
 construction.
 
-## What it does today (safe, standard USB requests)
+## What it does today (safe defaults plus one explicit read-only query)
 
 | Command                | Action                                              | Safety     |
 |------------------------|-----------------------------------------------------|------------|

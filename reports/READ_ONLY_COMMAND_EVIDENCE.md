@@ -4,12 +4,13 @@ Date: 2026-07-25
 
 ## Evidence status
 
-The first updater transaction is now verified passively. No command has been
-enabled or sent by the client.
+The first updater transaction is verified passively, and the `0x0B` candidate
+was also exercised once against the physical device through the explicit
+approval path. The default policy remains disabled after every invocation.
 
 | Candidate | Static evidence | Live passive evidence | Confidence | Safe to transmit |
 |---|---|---|---|---|
-| `0x0B` storage/capacity query candidate | exact builder and response decode | exact 16-byte request and `0x8B` response | HIGH bytes; MEDIUM meaning | approval required |
+| `0x0B` storage/capacity query | exact builder and response decode | passive capture plus physical `0x8B` response | VERIFIED LIVE | explicit approval required |
 | `0x06` block-read candidate | address/length builder and bulk-IN path | three exact requests, responses, and bulk-IN pairs | HIGH bytes; MEDIUM meaning | approval required |
 | `0x07` | non-PID branch only | absent | LOW | no |
 | `identify`/`version` | no distinct request established | absent | UNKNOWN | no |
@@ -32,9 +33,9 @@ enabled or sent by the client.
 
 ## Risk assessment
 
-The request is read-oriented in the observed updater path, but it precedes
-address-bearing reads and the update state machine. Its semantic purpose is
-not independently proven to be harmless. A separate update-stage capture also
-shows that the official updater can progress to a dangerous `0x02` bulk OUT
-after preliminary interrupt exchanges. Therefore the client policy remains
-blocked. Explicit owner approval is required before any active execution.
+The request is read-oriented in the observed updater path and the isolated
+physical exchange returned the same capacity value without proceeding to any
+address-bearing read. A separate update-stage capture shows that the official
+updater can progress to a dangerous `0x02` bulk OUT after preliminary interrupt
+exchanges; that path remains blocked. The client policy keeps `0x0B` disabled by
+default and requires explicit `--approve-live` for each single query.
