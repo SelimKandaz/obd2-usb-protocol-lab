@@ -108,6 +108,12 @@ Capture analysis (works offline; no tshark required):
 vod700 capture analyze private_samples/captures/handshake.pcapng
 ```
 
+Offline OBD-II/ISO-TP decoding (no device or vehicle access):
+
+```bash
+vod700 obd2 decode "7E8#04410C1AF8000000"
+```
+
 Active/query commands (`listen`, `identify`, `version`) are **gated**: they
 refuse to run until the underlying request is verified from capture evidence
 and enabled in `src/vod700/client/policy.py`.
@@ -136,7 +142,8 @@ The independent client now has evidence-backed offline parsers/builders, a
 policy-gated transport state machine, and one physical validation of the
 `0x0B`/`0x8B` exchange. The dangerous `0x06`/bulk paths remain unimplemented
 for dispatch. `storage-query` is disabled by default and requires explicit
-approval on every invocation.
+approval on every invocation. A separate offline OBD-II codec is available for
+captured CAN/ISO-TP data; it is not connected to the VOD700 USB transport.
 
 ## Legal & ethical
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import asdict
 from typing import Any
 
 from . import PRODUCT_ID, VENDOR_ID, __version__
@@ -229,6 +230,57 @@ def _cmd_checksums(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_obd2_decode(args: argparse.Namespace) -> int:
+    """Decode captured CAN/ISO-TP frames; never opens a transport."""
+    from .obd2 import (
+        IsoTpReassembler,
+        decode_dtc_response,
+        decode_mode01_response,
+        decode_vin_response,
+        parse_can_line,
+    )
+
+    try:
+        frames = [parse_can_line(line) for line in args.frames]
+        reassembler = IsoTpReassembler()
+        payloads = [payload for frame in frames if (payload := reassembler.feed(frame)) is not None]
+    except ValueError as exc:
+        print(f"OBD2 decode failed: {exc}", file=sys.stderr)
+        return 2
+    if not payloads:
+        print("OBD2 decode incomplete: no complete ISO-TP payload", file=sys.stderr)
+        return 1
+
+    decoded: list[dict[str, object]] = []
+    try:
+        for payload in payloads:
+            if payload.startswith(b"\x41"):
+                value = decode_mode01_response(payload)
+                decoded.append({"kind": "mode01", **asdict(value)})
+            elif payload.startswith(b"\x43"):
+                decoded.append(
+                    {
+                        "kind": "dtc",
+                        "codes": [d.code for d in decode_dtc_response(payload)],
+                        "raw": payload.hex(),
+                    }
+                )
+            elif payload.startswith(b"I\x02"):
+                decoded.append({"kind": "vin", "value": decode_vin_response(payload), "raw": payload.hex()})
+            else:
+                decoded.append({"kind": "raw", "payload_hex": payload.hex()})
+    except ValueError as exc:
+        print(f"OBD2 payload decode failed: {exc}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        _dump_json({"frames": [f.to_socketcan() for f in frames], "messages": decoded})
+    else:
+        for message in decoded:
+            print(message)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="vod700", description="VOD700 read-only USB protocol lab")
     p.add_argument("--version", action="version", version=f"vod700 {__version__}")
@@ -264,6 +316,11 @@ def build_parser() -> argparse.ArgumentParser:
     cs.add_argument("--endpoint", default="0x01")
     cs.add_argument("--bus", type=int, default=None)
     cs.add_argument("--address", type=int, default=None)
+
+    obd2 = sub.add_parser("obd2", help="decode captured OBD-II CAN/ISO-TP frames offline")
+    obd2_sub = obd2.add_subparsers(dest="obd2sub", required=True)
+    obd2_decode = obd2_sub.add_parser("decode", help="decode quoted ID#DATA CAN frames")
+    obd2_decode.add_argument("frames", nargs="+", help="SocketCAN-style ID#DATA frames")
     return p
 
 
@@ -283,4 +340,6 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_policy(args)
     if args.command == "capture":
         return _cmd_capture(args)
+    if args.command == "obd2" and args.obd2sub == "decode":
+        return _cmd_obd2_decode(args)
     return 1

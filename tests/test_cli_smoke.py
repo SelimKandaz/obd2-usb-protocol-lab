@@ -41,3 +41,10 @@ def test_capture_analyze_writes_reports(tmp_path):
     assert main(["capture", "analyze", str(path), "--out", str(out), "--prefix", "h"]) == 0
     assert (out / "h_packets.jsonl").exists()
     assert (out / "h_timeline.md").exists()
+
+
+def test_obd2_decode_is_offline(capsys):
+    assert main(["obd2", "decode", "7E8#04410C1AF8000000"]) == 0
+    output = capsys.readouterr().out
+    assert "engine_rpm" in output
+    assert "1726.0" in output
