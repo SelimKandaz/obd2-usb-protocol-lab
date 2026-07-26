@@ -36,6 +36,64 @@ function Get-Vod700 {
         Select-Object -First 1
 }
 
+function New-FirstVendorPipeSink {
+    param([string]$PipeName, [string]$OutputPath)
+    if (-not ('FirstVendorPipeSink' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.IO;
+using System.IO.Pipes;
+using System.Threading;
+using System.Threading.Tasks;
+
+public sealed class FirstVendorPipeSink : IDisposable
+{
+    private readonly NamedPipeServerStream pipe;
+    private readonly FileStream output;
+    private readonly ManualResetEventSlim connected = new ManualResetEventSlim(false);
+    private readonly Task pump;
+    private bool disposed;
+
+    public FirstVendorPipeSink(string pipeName, string outputPath)
+    {
+        pipe = new NamedPipeServerStream(pipeName, PipeDirection.In, 1,
+            PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        output = new FileStream(outputPath, FileMode.Create, FileAccess.Write,
+            FileShare.Read, 4096, FileOptions.Asynchronous);
+        pump = PumpAsync();
+    }
+
+    private async Task PumpAsync()
+    {
+        try
+        {
+            await pipe.WaitForConnectionAsync().ConfigureAwait(false);
+            connected.Set();
+            await pipe.CopyToAsync(output).ConfigureAwait(false);
+        }
+        catch (IOException) { }
+        catch (ObjectDisposedException) { }
+        finally { try { output.Flush(); } catch { } }
+    }
+
+    public bool WaitForConnection(int milliseconds) { return connected.Wait(milliseconds); }
+
+    public void Dispose()
+    {
+        if (disposed) return;
+        disposed = true;
+        try { pipe.Dispose(); } catch { }
+        try { pump.Wait(TimeSpan.FromSeconds(5)); } catch { }
+        try { output.Flush(true); } catch { }
+        try { output.Dispose(); } catch { }
+        connected.Dispose();
+    }
+}
+'@
+    }
+    return [FirstVendorPipeSink]::new($PipeName, $OutputPath)
+}
+
 if (-not $UpdaterPath) { $UpdaterPath = Join-Path $repo 'private_samples\updater\Update.exe' }
 if (-not $OutPath) { $OutPath = Join-Path $repo 'private_samples\captures\updater_first_vendor.pcap' }
 if (-not $SignalPath) { $SignalPath = Join-Path $repo 'private_samples\captures\first_vendor_click.signal' }
@@ -68,11 +126,17 @@ $outDir = Split-Path -Parent $OutPath
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 Remove-Item -LiteralPath $SignalPath -Force -ErrorAction SilentlyContinue
 $cap = $null
+$sink = $null
 try {
-    # USBPcapCMD rejects 4096 as the lower-bound buffer value. Use its
-    # documented default-sized kernel buffer and a full USB snapshot length.
-    $captureArgs = '-d "{0}" -A -o "{1}" -s 65535 -b 1048576' -f $interface, $OutPath
+    $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+    $pipeName = "vod700_first_vendor_$stamp"
+    $sink = New-FirstVendorPipeSink -PipeName $pipeName -OutputPath $OutPath
+    $captureArgs = '--extcap-interface "{0}" --fifo "{1}" --capture --capture-from-all-devices' -f $interface, "\\.\pipe\$pipeName"
     $cap = Start-Process -FilePath $usbpcapCmd -ArgumentList $captureArgs -PassThru -WindowStyle Hidden
+    if (-not $sink.WaitForConnection(5000)) {
+        if (-not $cap.HasExited) { Stop-Process -Id $cap.Id -Force -ErrorAction SilentlyContinue }
+        Fail 'USBPcapCMD did not connect to the named-pipe capture sink.'
+    }
     Start-Sleep -Seconds 2
     if ($cap.HasExited) { Fail 'USBPcapCMD exited before updater launch.' }
     Write-Host ("CAPTURE_ACTIVE " + [char]0x2014 + " OPEN THE OFFICIAL UPDATER AND STOP BEFORE CLICKING UPDATE")
@@ -99,8 +163,14 @@ try {
     Start-Sleep -Seconds $PostClickSeconds
     Write-Host ("CLICK_SIGNAL_RECEIVED " + [char]0x2014 + " containing updater and stopping capture.")
     try { Stop-Process -Id $updater.ProcessId -Force -ErrorAction SilentlyContinue } catch { }
+    $sink.Dispose()
+    $sink = $null
+    try { Wait-Process -Id $cap.Id -Timeout 5 -ErrorAction SilentlyContinue } catch { }
 }
 finally {
+    if ($sink) {
+        try { $sink.Dispose() } catch { }
+    }
     if ($cap) {
         try { Wait-Process -Id $cap.Id -Timeout 3 -ErrorAction SilentlyContinue } catch { }
         $cap.Refresh()
