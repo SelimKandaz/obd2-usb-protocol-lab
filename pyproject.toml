@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "vod700"
 version = "0.1.0"
-description = "Read-only, evidence-driven USB protocol research tools for the ANCEL/Autophix VOD700"
+description = "Read-only, evidence-driven USB protocol research tools for OBD2 diagnostic devices; VOD700 case study"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"

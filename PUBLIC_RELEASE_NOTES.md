@@ -1,8 +1,10 @@
-# VOD700 Protocol Lab — release scope
+# OBD2 USB Protocol Lab — release scope
 
-This repository contains the reproducible, evidence-driven tooling and
-documentation for passive USB protocol research on an ANCEL/Autophix VOD700.
-It is intentionally safe to inspect and build offline.
+This repository contains reproducible, evidence-driven tooling and
+documentation for passive USB protocol research on OBD2 diagnostic devices.
+The ANCEL/Autophix VOD700 is the retained reference device and case study;
+VOD700-specific evidence is intentionally kept in the technical reports.
+The project is safe to inspect and build offline.
 
 ## Included
 

@@ -1,8 +1,9 @@
-# VOD700 Protocol Lab
+# OBD2 USB Protocol Lab — VOD700 case study
 
-Evidence-driven, **read-only** reverse-engineering of the USB protocol spoken
-between the official ANCEL/Autophix VOD700 desktop updater and the VOD700
-automotive diagnostic device.
+Evidence-driven, **read-only** reverse-engineering tools for USB-connected OBD2
+diagnostic devices. The current reference device and detailed case study is
+the ANCEL/Autophix VOD700; its evidence remains documented throughout this
+repository.
 
 > **Scope of this project is interoperability research and documentation.**
 > The immediate goal is *understanding* — descriptors, endpoints, framing,
