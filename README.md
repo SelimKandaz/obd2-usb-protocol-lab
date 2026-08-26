@@ -173,3 +173,6 @@ VOD700 USB transport.
 Independent interoperability research on a device the operator owns. No bypass of
 licensing, authentication, signatures, or access controls; no redistribution of
 proprietary firmware or software. See `docs/SAFE_RESEARCH_RULES.md`.
+
+For the repository publication boundary and the local-only artifact policy, see
+[`PUBLIC_RELEASE_NOTES.md`](PUBLIC_RELEASE_NOTES.md).
